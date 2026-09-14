@@ -32,6 +32,15 @@
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 76
         }
+      ],
+      "@react-native-vector-icons/material-design-icons",
+      "expo-sqlite",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Permite a $(PRODUCT_NAME) acceder a tu cámara para escanear códigos de barras",
+          "barcodeScannerEnabled": true
+        }
       ]
     ],
     "experiments": {

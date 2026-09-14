@@ -1,21 +1,21 @@
-import { useEffect, useState } from 'react';
-import { useColorScheme as useRNColorScheme } from 'react-native';
+import { ColorSchemeName } from "react-native";
 
 /**
- * To support static rendering, this value needs to be re-calculated on the client side for web
+ * Función auxiliar para leer de forma segura el tema en la web sin romper SSR
  */
-export function useColorScheme() {
-  const [hasHydrated, setHasHydrated] = useState(false);
-
-  useEffect(() => {
-    setHasHydrated(true);
-  }, []);
-
-  const colorScheme = useRNColorScheme();
-
-  if (hasHydrated) {
-    return colorScheme;
+function getWebColorScheme(): ColorSchemeName {
+  if (typeof window === "undefined" || !window.matchMedia) {
+    return "light";
   }
 
-  return 'light';
+  return window.matchMedia("(prefers-color-scheme: dark)").matches
+    ? "dark"
+    : "light";
+}
+
+/**
+ * Hook de detección de tema para entorno Web (sin setState en useEffect).
+ */
+export function useColorScheme(): ColorSchemeName {
+  return getWebColorScheme();
 }
