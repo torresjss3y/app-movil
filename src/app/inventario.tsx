@@ -1,11 +1,10 @@
 import {
-  Contadores,
   FiltrosInventario,
   FiltroStock,
-} from "@/components/inventario/FiltrosInventario";
-import { HeaderInventario } from "@/components/inventario/HeaderInventario";
-import { ItemProducto } from "@/components/inventario/ItemProducto";
-import ModalCrearProducto from "@/components/modalInventarioScanner";
+  HeaderInventario,
+  ItemProducto,
+  ModalProducto,
+} from "@/components/inventario";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { MaxContentWidth, Spacing } from "@/constants/theme";
@@ -18,14 +17,15 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function InventarioScreen() {
   const theme = useTheme();
-  const [modalVisible, setModalVisible] = useState(false);
-  const [productoEditando, setProductoEditando] = useState<ProductoDB | null>(
-    null,
-  );
 
   const [productos, setProductos] = useState<ProductoDB[]>([]);
   const [busqueda, setBusqueda] = useState("");
   const [filtroStock, setFiltroStock] = useState<FiltroStock>("todos");
+
+  const [modalVisible, setModalVisible] = useState(false);
+  const [productoEditando, setProductoEditando] = useState<ProductoDB | null>(
+    null,
+  );
 
   const cargarProductos = useCallback(() => {
     setProductos(obtenerProductos());
@@ -62,7 +62,7 @@ export default function InventarioScreen() {
     });
   }, [productos, busqueda, filtroStock]);
 
-  const contadores: Contadores = useMemo(() => {
+  const contadores = useMemo(() => {
     const activos = productos.filter((p) => p.activo === 1);
     return {
       todos: activos.length,
@@ -74,6 +74,21 @@ export default function InventarioScreen() {
     };
   }, [productos]);
 
+  const abrirNuevo = () => {
+    setProductoEditando(null);
+    setModalVisible(true);
+  };
+
+  const abrirEditar = (p: ProductoDB) => {
+    setProductoEditando(p);
+    setModalVisible(true);
+  };
+
+  const cerrarModal = () => {
+    setModalVisible(false);
+    setProductoEditando(null);
+  };
+
   return (
     <ThemedView
       style={[styles.container, { backgroundColor: theme.background }]}
@@ -81,7 +96,7 @@ export default function InventarioScreen() {
       <SafeAreaView style={styles.safeArea} edges={["top"]}>
         <HeaderInventario
           totalActivos={contadores.todos}
-          onAgregar={() => setModalVisible(true)}
+          onAgregar={abrirNuevo}
         />
 
         <View style={styles.sectionMargin}>
@@ -107,7 +122,6 @@ export default function InventarioScreen() {
         <FiltrosInventario
           filtroActual={filtroStock}
           onCambiar={setFiltroStock}
-          contadores={contadores}
         />
 
         <FlatList
@@ -121,17 +135,14 @@ export default function InventarioScreen() {
             <ItemProducto
               producto={item}
               onRefresh={cargarProductos}
-              onEditar={(p) => {
-                setProductoEditando(p);
-                setModalVisible(true);
-              }}
+              onEditar={abrirEditar}
             />
           )}
           ListEmptyComponent={
             <ThemedView style={styles.emptyContainer}>
-              <ThemedText
-                style={{ fontSize: 40, marginBottom: 8 }}
-              ></ThemedText>
+              <ThemedText style={{ fontSize: 40, marginBottom: 8 }}>
+                📦
+              </ThemedText>
               <ThemedText
                 type="smallBold"
                 style={{ color: theme.textSecondary }}
@@ -148,13 +159,10 @@ export default function InventarioScreen() {
           }
         />
 
-        <ModalCrearProducto
+        <ModalProducto
           key={productoEditando?.id ?? "nuevo"}
           visible={modalVisible}
-          onClose={() => {
-            setModalVisible(false);
-            setProductoEditando(null);
-          }}
+          onClose={cerrarModal}
           onSuccess={cargarProductos}
           productoEditar={productoEditando}
         />

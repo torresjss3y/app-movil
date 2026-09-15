@@ -14,7 +14,6 @@ export interface Contadores {
 interface Props {
   filtroActual: FiltroStock;
   onCambiar: (filtro: FiltroStock) => void;
-  contadores: Contadores;
 }
 
 export function FiltrosInventario({ filtroActual, onCambiar }: Props) {
