@@ -1,10 +1,15 @@
 import { ThemedText } from "@/components/themed-text";
 import { Spacing } from "@/constants/theme";
-import { crearProducto } from "@/database/productosService";
+import {
+  actualizarProducto,
+  crearProducto,
+  obtenerProductoPorCodigo,
+  ProductoDB,
+} from "@/database/productosService";
 import { useTheme } from "@/hooks/use-theme";
 import { Ionicons } from "@expo/vector-icons";
 import { CameraView, useCameraPermissions } from "expo-camera";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   Alert,
   Dimensions,
@@ -21,34 +26,142 @@ interface ModalCrearProductoProps {
   visible: boolean;
   onClose: () => void;
   onSuccess?: () => void;
+  productoEditar?: ProductoDB | null;
 }
 
 const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get("window");
+
+// Helper: input con label arriba
+function Field({
+  label,
+  required,
+  theme,
+  ...inputProps
+}: {
+  label: string;
+  required?: boolean;
+  theme: any;
+} & React.ComponentProps<typeof TextInput>) {
+  const [focused, setFocused] = useState(false);
+  const bloqueado = inputProps.editable === false;
+
+  return (
+    <View style={styles.fieldWrapper}>
+      <ThemedText
+        type="small"
+        style={[styles.fieldLabel, { color: theme.textSecondary }]}
+      >
+        {label}
+        {required && (
+          <ThemedText style={{ color: theme.danger }}> *</ThemedText>
+        )}
+      </ThemedText>
+      <TextInput
+        {...inputProps}
+        onFocus={(e) => {
+          setFocused(true);
+          inputProps.onFocus?.(e);
+        }}
+        onBlur={(e) => {
+          setFocused(false);
+          inputProps.onBlur?.(e);
+        }}
+        style={[
+          styles.input,
+          {
+            borderColor: focused && !bloqueado ? theme.primary : theme.border,
+            backgroundColor: bloqueado ? theme.border + "44" : theme.input,
+            color: bloqueado ? theme.textSecondary : theme.text,
+          },
+          inputProps.style,
+        ]}
+        placeholderTextColor={theme.textSecondary}
+      />
+    </View>
+  );
+}
 
 export default function ModalCrearProducto({
   visible,
   onClose,
   onSuccess,
+  productoEditar,
 }: ModalCrearProductoProps) {
   const theme = useTheme();
 
-  const [nombre, setNombre] = useState("");
-  const [marca, setMarca] = useState("");
-  const [talla, setTalla] = useState("");
-  const [color, setColor] = useState("");
-  const [precioCompra, setPrecioCompra] = useState("");
-  const [precioVenta, setPrecioVenta] = useState("");
-  const [stock, setStock] = useState("");
-  const [codigoBarras, setCodigoBarras] = useState("");
+  const [nombre, setNombre] = useState(productoEditar?.nombre || "");
+  const [marca, setMarca] = useState(productoEditar?.marca || "");
+  const [talla, setTalla] = useState(
+    productoEditar?.talla ? String(productoEditar.talla) : "",
+  );
+  const [color, setColor] = useState(productoEditar?.color || "");
+  const [precioCompra, setPrecioCompra] = useState(
+    productoEditar?.precio_compra ? String(productoEditar.precio_compra) : "",
+  );
+  const [precioVenta, setPrecioVenta] = useState(
+    productoEditar?.precio_venta ? String(productoEditar.precio_venta) : "",
+  );
+  const [stock, setStock] = useState(
+    productoEditar?.stock !== undefined ? String(productoEditar.stock) : "",
+  );
+  const [codigoBarras, setCodigoBarras] = useState(
+    productoEditar?.codigo_barras || "",
+  );
 
   const [permiso, solicitarPermiso] = useCameraPermissions();
   const [escaneando, setEscaneando] = useState(false);
-  const [codigoConfirmado, setCodigoConfirmado] = useState(false);
+  const [codigoConfirmado, setCodigoConfirmado] = useState(!!productoEditar);
   const [flashOn, setFlashOn] = useState(false);
 
-  // Solicitar permiso y activar escaneo al abrir el modal
+  const [productos, setProductos] = useState<ProductoDB[]>([]);
+
+  const esEdicion = !!productoEditar;
+
+  const buscarYAutoCompletarProducto = useCallback((codigo: string) => {
+    const productoEncontrado = obtenerProductoPorCodigo(codigo);
+
+    if (productoEncontrado) {
+      setNombre(productoEncontrado.nombre || "");
+      setMarca(productoEncontrado.marca || "");
+      setTalla(
+        productoEncontrado.talla ? String(productoEncontrado.talla) : "",
+      );
+      setColor(productoEncontrado.color || "");
+      setPrecioCompra(
+        productoEncontrado.precio_compra
+          ? String(productoEncontrado.precio_compra)
+          : "",
+      );
+      setPrecioVenta(
+        productoEncontrado.precio_venta
+          ? String(productoEncontrado.precio_venta)
+          : "",
+      );
+      setStock(
+        productoEncontrado.stock !== undefined
+          ? String(productoEncontrado.stock)
+          : "",
+      );
+
+      setProductos((prevProductos) => {
+        const existeIndice = prevProductos.findIndex(
+          (p) => p.codigo_barras === productoEncontrado.codigo_barras,
+        );
+
+        if (existeIndice !== -1) {
+          const actualizados = [...prevProductos];
+          actualizados[existeIndice] = productoEncontrado;
+          return actualizados;
+        }
+
+        return [...prevProductos, productoEncontrado];
+      });
+    }
+  }, []);
+
   useEffect(() => {
     if (!visible) return;
+    if (esEdicion) return;
 
     if (!permiso?.granted) {
       solicitarPermiso();
@@ -63,7 +176,7 @@ export default function ModalCrearProducto({
       setEscaneando(false);
       setFlashOn(false);
     };
-  }, [visible, permiso, solicitarPermiso]);
+  }, [visible, esEdicion, permiso, solicitarPermiso]);
 
   const handleCodigoDetectado = ({ data }: { data: string }) => {
     if (data && escaneando) {
@@ -71,20 +184,18 @@ export default function ModalCrearProducto({
       setEscaneando(false);
       setCodigoConfirmado(true);
       setFlashOn(false);
+      buscarYAutoCompletarProducto(data);
     }
   };
 
   const handleReescanear = () => {
-    setCodigoBarras("");
-    setCodigoConfirmado(false);
+    limpiarFormulario();
     setTimeout(() => {
       setEscaneando(true);
     }, 600);
   };
 
-  const toggleFlash = () => {
-    setFlashOn((prev) => !prev);
-  };
+  const toggleFlash = () => setFlashOn((prev) => !prev);
 
   const limpiarFormulario = () => {
     setNombre("");
@@ -101,34 +212,62 @@ export default function ModalCrearProducto({
   };
 
   const handleGuardar = () => {
-    if (!nombre.trim() || !talla.trim() || !precioVenta || !stock) {
+    if (!nombre.trim() || !talla.trim() || !precioVenta) {
       Alert.alert(
         "Campos requeridos",
-        "Por favor completa el nombre, talla, precio de venta y stock.",
+        "Por favor completa el nombre, talla y precio de venta.",
       );
       return;
     }
 
-    const exito = crearProducto({
-      id: Date.now().toString(),
-      codigo_barras: codigoBarras.trim() || null,
-      nombre: nombre.trim(),
-      marca: marca.trim() || null,
-      talla: talla.trim(),
-      color: color.trim() || null,
-      precio_compra: precioCompra ? parseFloat(precioCompra) : 0,
-      precio_venta: parseFloat(precioVenta),
-      stock: parseInt(stock, 10),
-    });
+    if (!esEdicion && !stock) {
+      Alert.alert("Campos requeridos", "Ingresa un stock inicial.");
+      return;
+    }
+
+    let exito = false;
+
+    if (productoEditar) {
+      exito = actualizarProducto({
+        ...productoEditar,
+        codigo_barras: codigoBarras.trim() || null,
+        nombre: nombre.trim(),
+        marca: marca.trim() || null,
+        talla: talla.trim(),
+        color: color.trim() || null,
+        precio_compra: precioCompra ? parseFloat(precioCompra) : 0,
+        precio_venta: parseFloat(precioVenta),
+      });
+    } else {
+      exito = crearProducto({
+        id: Date.now().toString(),
+        codigo_barras: codigoBarras.trim() || null,
+        nombre: nombre.trim(),
+        marca: marca.trim() || null,
+        talla: talla.trim(),
+        color: color.trim() || null,
+        precio_compra: precioCompra ? parseFloat(precioCompra) : 0,
+        precio_venta: parseFloat(precioVenta),
+        stock: parseInt(stock, 10) || 0,
+      });
+    }
 
     if (exito) {
+      Alert.alert(
+        "Éxito",
+        esEdicion
+          ? "Producto actualizado correctamente."
+          : "Producto registrado exitosamente.",
+      );
       limpiarFormulario();
       onClose();
       if (onSuccess) onSuccess();
     } else {
       Alert.alert(
         "Error",
-        "No se pudo guardar la zapatilla en la base de datos.",
+        esEdicion
+          ? "No se pudo actualizar el producto."
+          : "No se pudo guardar el producto.",
       );
     }
   };
@@ -151,24 +290,18 @@ export default function ModalCrearProducto({
       <View
         style={[
           styles.modalContent,
-          {
-            backgroundColor: theme.card,
-            maxHeight: SCREEN_HEIGHT * 0.9,
-          },
+          { backgroundColor: theme.card, maxHeight: SCREEN_HEIGHT * 0.92 },
         ]}
       >
         <ThemedText type="smallBold" style={styles.titulo}>
-          Nueva Zapatilla
+          {esEdicion ? "Editar Zapatilla" : "Nueva Zapatilla"}
         </ThemedText>
 
-        {/* ===== CÁMARA EMBEBIDA ===== */}
-        {/* Se oculta una vez confirmado el código para liberar espacio
-            vertical y que el formulario no quede tapado por el teclado */}
-        {!codigoConfirmado && (
+        {/* CÁMARA (solo si NO es edición) */}
+        {!esEdicion && !codigoConfirmado && (
           <View style={styles.cameraWrapper} collapsable={false}>
             {permisoConcedido ? (
               <>
-                {/* CameraView ocupa todo el wrapper (sin children) */}
                 <CameraView
                   style={StyleSheet.absoluteFill}
                   facing="back"
@@ -189,29 +322,24 @@ export default function ModalCrearProducto({
                   }
                 />
 
-                {/* Botón de Flash (hermano, no hijo) */}
                 <TouchableOpacity
                   style={styles.btnFlash}
                   onPress={toggleFlash}
                   activeOpacity={0.7}
-                  accessibilityLabel="Alternar flash"
-                  accessibilityRole="button"
                 >
                   <Ionicons
                     name={flashOn ? "flash" : "flash-outline"}
-                    size={20}
+                    size={18}
                     color={flashOn ? "#F59E0B" : "#FFFFFF"}
                   />
                 </TouchableOpacity>
 
-                {/* Overlay con la caja verde */}
                 <View style={styles.scannerOverlay} pointerEvents="box-none">
                   <View style={styles.scannerCenter}>
                     <View style={styles.scannerTargetBox} />
                   </View>
                 </View>
 
-                {/* Mensaje de alineación */}
                 {!escaneando && (
                   <View style={styles.loadingOverlay}>
                     <ThemedText style={styles.loadingText}>
@@ -229,36 +357,46 @@ export default function ModalCrearProducto({
             )}
           </View>
         )}
-        {/* ===== FIN CÁMARA ===== */}
 
-        {/* Badge de confirmación + botón reescanear, ahora fuera de la
-            cámara (que ya está oculta) para que sigan visibles */}
+        {/* Línea compacta de código */}
         {codigoConfirmado && (
           <View
             style={[
-              styles.confirmRow,
+              styles.codeLine,
               { borderColor: theme.border, backgroundColor: theme.input },
             ]}
           >
-            <View style={styles.confirmInfo}>
-              <ThemedText
-                style={[styles.confirmBadgeText, { color: theme.text }]}
-              >
-                ✓ Código detectado
-              </ThemedText>
-              <ThemedText type="small" style={{ color: theme.textSecondary }}>
-                {codigoBarras}
-              </ThemedText>
-            </View>
-            <TouchableOpacity
-              style={[styles.btnReescanear, { backgroundColor: theme.primary }]}
-              onPress={handleReescanear}
-              activeOpacity={0.8}
-              accessibilityLabel="Volver a escanear"
-              accessibilityRole="button"
+            <Ionicons
+              name={esEdicion ? "create-outline" : "barcode-outline"}
+              size={14}
+              color={theme.textSecondary}
+            />
+            <ThemedText
+              type="small"
+              numberOfLines={1}
+              style={{
+                color: theme.textSecondary,
+                fontSize: 11,
+                flex: 1,
+                marginLeft: 6,
+              }}
             >
-              <Ionicons name="refresh-outline" size={18} color="#FFFFFF" />
-            </TouchableOpacity>
+              {esEdicion ? "Editando · " : "Código: "}
+              {codigoBarras || "sin código"}
+            </ThemedText>
+
+            {!esEdicion && (
+              <TouchableOpacity
+                onPress={handleReescanear}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <Ionicons
+                  name="refresh-outline"
+                  size={16}
+                  color={theme.primary}
+                />
+              </TouchableOpacity>
+            )}
           </View>
         )}
 
@@ -267,143 +405,137 @@ export default function ModalCrearProducto({
           style={styles.scroll}
           keyboardShouldPersistTaps="handled"
         >
+          {/* === PRODUCTO === */}
           <ThemedText
             type="small"
             style={[styles.sectionLabel, { color: theme.textSecondary }]}
           >
-            Producto
+            PRODUCTO
           </ThemedText>
 
-          <TextInput
-            style={[
-              styles.input,
-              {
-                borderColor: theme.border,
-                backgroundColor: theme.input,
-                color: theme.text,
-              },
-            ]}
-            placeholder="Modelo / Nombre * (ej: Air Max 90)"
-            placeholderTextColor={theme.textSecondary}
+          <Field
+            label="Nombre o modelo"
+            required
+            theme={theme}
+            placeholder="Ej. Nike Air Force 1"
             value={nombre}
             onChangeText={setNombre}
           />
 
           <View style={styles.row}>
-            <TextInput
-              style={[
-                styles.input,
-                styles.flex1,
-                {
-                  borderColor: theme.border,
-                  backgroundColor: theme.input,
-                  color: theme.text,
-                },
-              ]}
-              placeholder="Marca (ej: Nike)"
-              placeholderTextColor={theme.textSecondary}
-              value={marca}
-              onChangeText={setMarca}
-            />
-            <TextInput
-              style={[
-                styles.input,
-                styles.flex1,
-                {
-                  borderColor: theme.border,
-                  backgroundColor: theme.input,
-                  color: theme.text,
-                },
-              ]}
-              placeholder="Talla * (ej: 41)"
-              placeholderTextColor={theme.textSecondary}
-              keyboardType="numeric"
-              value={talla}
-              onChangeText={setTalla}
-            />
+            <View style={styles.flex1}>
+              <Field
+                label="Marca"
+                theme={theme}
+                placeholder="Ej. Nike"
+                value={marca}
+                onChangeText={setMarca}
+              />
+            </View>
+            <View style={styles.flex1}>
+              <Field
+                label="Talla"
+                required
+                theme={theme}
+                placeholder="Ej. 42"
+                keyboardType="numeric"
+                value={talla}
+                onChangeText={setTalla}
+              />
+            </View>
           </View>
 
+          {/* === DETALLES === */}
           <ThemedText
             type="small"
             style={[styles.sectionLabel, { color: theme.textSecondary }]}
           >
-            Detalles
+            DETALLES
           </ThemedText>
 
           <View style={styles.row}>
-            <TextInput
-              style={[
-                styles.input,
-                styles.flex1,
-                {
-                  borderColor: theme.border,
-                  backgroundColor: theme.input,
-                  color: theme.text,
-                },
-              ]}
-              placeholder="Color (ej: Blanco)"
-              placeholderTextColor={theme.textSecondary}
-              value={color}
-              onChangeText={setColor}
-            />
-            <TextInput
-              style={[
-                styles.input,
-                styles.flex1,
-                {
-                  borderColor: theme.border,
-                  backgroundColor: theme.input,
-                  color: theme.text,
-                },
-              ]}
-              placeholder="Stock * (Pares)"
-              placeholderTextColor={theme.textSecondary}
-              keyboardType="numeric"
-              value={stock}
-              onChangeText={setStock}
-            />
+            <View style={styles.flex1}>
+              <Field
+                label="Color"
+                theme={theme}
+                placeholder="Ej. Blanco"
+                value={color}
+                onChangeText={setColor}
+              />
+            </View>
+            <View style={styles.flex1}>
+              <Field
+                label={esEdicion ? "Stock (lectura)" : "Stock inicial"}
+                required={!esEdicion}
+                theme={theme}
+                placeholder="Ej. 10"
+                keyboardType="numeric"
+                value={stock}
+                onChangeText={setStock}
+                editable={!esEdicion}
+              />
+            </View>
           </View>
 
+          {esEdicion && (
+            <View
+              style={[
+                styles.infoRow,
+                {
+                  backgroundColor: theme.primary + "15",
+                  borderColor: theme.primary + "33",
+                },
+              ]}
+            >
+              <Ionicons
+                name="information-circle-outline"
+                size={14}
+                color={theme.primary}
+              />
+              <ThemedText
+                type="small"
+                style={{
+                  color: theme.primary,
+                  fontSize: 10,
+                  marginLeft: 5,
+                  flex: 1,
+                }}
+              >
+                El stock se gestiona desde movimientos.
+              </ThemedText>
+            </View>
+          )}
+
+          {/* === PRECIOS === */}
           <ThemedText
             type="small"
             style={[styles.sectionLabel, { color: theme.textSecondary }]}
           >
-            Precios
+            PRECIOS
           </ThemedText>
 
           <View style={styles.row}>
-            <TextInput
-              style={[
-                styles.input,
-                styles.flex1,
-                {
-                  borderColor: theme.border,
-                  backgroundColor: theme.input,
-                  color: theme.text,
-                },
-              ]}
-              placeholder="P. Compra ($)"
-              placeholderTextColor={theme.textSecondary}
-              keyboardType="numeric"
-              value={precioCompra}
-              onChangeText={setPrecioCompra}
-            />
-            <TextInput
-              style={[
-                styles.input,
-                styles.flex1,
-                {
-                  borderColor: theme.border,
-                  backgroundColor: theme.input,
-                  color: theme.text,
-                },
-              ]}
-              placeholder="P. Venta * ($)"
-              placeholderTextColor={theme.textSecondary}
-              keyboardType="numeric"
-              value={precioVenta}
-              onChangeText={setPrecioVenta}
-            />
+            <View style={styles.flex1}>
+              <Field
+                label="Compra (S/)"
+                theme={theme}
+                placeholder="0.00"
+                keyboardType="numeric"
+                value={precioCompra}
+                onChangeText={setPrecioCompra}
+              />
+            </View>
+            <View style={styles.flex1}>
+              <Field
+                label="Venta (S/)"
+                required
+                theme={theme}
+                placeholder="0.00"
+                keyboardType="numeric"
+                value={precioVenta}
+                onChangeText={setPrecioVenta}
+              />
+            </View>
           </View>
         </ScrollView>
 
@@ -430,7 +562,7 @@ export default function ModalCrearProducto({
             onPress={handleGuardar}
           >
             <ThemedText type="smallBold" style={{ color: "#FFFFFF" }}>
-              Guardar
+              {esEdicion ? "Actualizar" : "Guardar"}
             </ThemedText>
           </TouchableOpacity>
         </View>
@@ -442,7 +574,7 @@ export default function ModalCrearProducto({
 const styles = StyleSheet.create({
   overlay: {
     position: "absolute",
-    top: 3,
+    top: 0,
     left: 0,
     width: SCREEN_WIDTH,
     height: SCREEN_HEIGHT,
@@ -451,11 +583,11 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0, 0, 0, 0.5)",
     justifyContent: "center",
     alignItems: "center",
-    paddingHorizontal: Spacing.four,
+    paddingHorizontal: Spacing.three,
     paddingVertical: Spacing.two,
   },
   modalContent: {
-    padding: Spacing.four,
+    padding: Spacing.three,
     borderRadius: 12,
     width: "100%",
     maxHeight: "96%",
@@ -463,18 +595,18 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   titulo: {
-    fontSize: 18,
-    marginBottom: Spacing.three,
+    fontSize: 16,
+    marginBottom: 10,
     textAlign: "center",
   },
 
-  // ===== CÁMARA =====
+  /* Cámara */
   cameraWrapper: {
     width: "100%",
-    height: 160,
-    borderRadius: 12,
+    height: 120,
+    borderRadius: 10,
     overflow: "hidden",
-    marginBottom: Spacing.three,
+    marginBottom: 10,
     backgroundColor: "#000",
     position: "relative",
   },
@@ -492,78 +624,87 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   scannerTargetBox: {
-    width: 200,
+    width: 250,
     height: 90,
     borderWidth: 2,
     borderColor: "#10B981",
-    borderRadius: 12,
+    borderRadius: 10,
     backgroundColor: "transparent",
   },
   btnFlash: {
     position: "absolute",
-    top: 10,
-    right: 10,
+    top: 8,
+    right: 8,
     zIndex: 10,
     backgroundColor: "rgba(0, 0, 0, 0.6)",
-    padding: 8,
-    borderRadius: 20,
+    padding: 6,
+    borderRadius: 16,
     alignItems: "center",
   },
   loadingOverlay: {
     position: "absolute",
-    bottom: 8,
+    bottom: 6,
     alignSelf: "center",
     backgroundColor: "rgba(0, 0, 0, 0.6)",
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: 6,
   },
   loadingText: {
     color: "#FFFFFF",
-    fontSize: 11,
+    fontSize: 10,
   },
-  // ===== FIN CÁMARA =====
 
-  // Fila de confirmación de código (reemplaza el badge flotante
-  // sobre la cámara, ahora que la cámara se oculta tras confirmar)
-  confirmRow: {
+  /* Línea compacta de código */
+  codeLine: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
     borderWidth: 1,
-    borderRadius: 10,
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.two,
-    marginBottom: Spacing.three,
-  },
-  confirmInfo: {
-    flexShrink: 1,
-  },
-  confirmBadgeText: {
-    fontSize: 13,
-    fontWeight: "bold",
-    marginBottom: 2,
-  },
-  btnReescanear: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    alignItems: "center",
-    justifyContent: "center",
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    marginBottom: 8,
   },
 
+  /* Formulario */
   scroll: {
-    marginBottom: Spacing.three,
+    marginBottom: 8,
     flexGrow: 1,
     flexShrink: 1,
     minHeight: 0,
   },
   sectionLabel: {
-    fontSize: 11,
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-    marginBottom: 6,
-    marginTop: Spacing.two,
+    fontSize: 10,
+    fontWeight: "700",
+    letterSpacing: 1,
+    marginBottom: 4,
+    marginTop: 6,
+  },
+  fieldWrapper: {
+    marginBottom: 8,
+  },
+  fieldLabel: {
+    fontSize: 10,
+    fontWeight: "600",
+    marginBottom: 3,
+    marginLeft: 2,
+    letterSpacing: 0.3,
+  },
+  input: {
+    height: 40,
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    fontSize: 14,
+  },
+  infoRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    borderRadius: 6,
+    borderWidth: 1,
+    marginBottom: 4,
   },
   row: {
     flexDirection: "row",
@@ -572,21 +713,13 @@ const styles = StyleSheet.create({
   flex1: {
     flex: 1,
   },
-  input: {
-    height: 44,
-    borderWidth: 1,
-    borderRadius: 10,
-    paddingHorizontal: Spacing.three,
-    fontSize: 14,
-    marginBottom: Spacing.two,
-  },
   buttonContainer: {
     flexDirection: "row",
     gap: Spacing.two,
   },
   btn: {
     flex: 1,
-    height: 44,
+    height: 42,
     borderRadius: 10,
     alignItems: "center",
     justifyContent: "center",
