@@ -141,7 +141,6 @@ export default function InventarioScreen() {
           ListEmptyComponent={
             <ThemedView style={styles.emptyContainer}>
               <ThemedText style={{ fontSize: 40, marginBottom: 8 }}>
-                📦
               </ThemedText>
               <ThemedText
                 type="smallBold"

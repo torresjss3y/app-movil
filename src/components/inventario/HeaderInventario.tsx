@@ -16,10 +16,7 @@ export function HeaderInventario({ totalActivos, onAgregar }: Props) {
         <ThemedText type="title" style={styles.title}>
           Inventario
         </ThemedText>
-        <ThemedText
-          type="small"
-          style={{ color: theme.textSecondary, marginTop: 2 }}
-        >
+        <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: 2 }}>
           {totalActivos} productos activos
         </ThemedText>
       </View>
@@ -31,7 +28,7 @@ export function HeaderInventario({ totalActivos, onAgregar }: Props) {
         accessibilityRole="button"
         accessibilityLabel="Agregar producto"
       >
-        <ThemedText style={styles.iconButtonText}>＋</ThemedText>
+        <ThemedText style={styles.iconButtonText}>+</ThemedText>
       </TouchableOpacity>
     </View>
   );

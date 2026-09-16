@@ -1,9 +1,9 @@
 import { ThemedText } from "@/components/themed-text";
 import { useTheme } from "@/hooks/use-theme";
 import { Ionicons } from "@expo/vector-icons";
-import { CameraView, useCameraPermissions } from "expo-camera";
-import { useEffect, useState } from "react";
-import { StyleSheet, TouchableOpacity, View } from "react-native";
+import { BarcodeScanningResult, CameraView, useCameraPermissions } from "expo-camera";
+import { useEffect, useRef, useState } from "react";
+import { LayoutChangeEvent, StyleSheet, TouchableOpacity, View } from "react-native";
 
 interface Props {
   visible: boolean;
@@ -11,14 +11,15 @@ interface Props {
   onCodigoDetectado: (codigo: string) => void;
 }
 
-export function ScannerCamara({
-  visible,
-  escaneando,
-  onCodigoDetectado,
-}: Props) {
+export function ScannerCamara({ visible, escaneando, onCodigoDetectado }: Props) {
   const theme = useTheme();
   const [permiso, solicitarPermiso] = useCameraPermissions();
   const [flashOn, setFlashOn] = useState(false);
+  const [layout, setLayout] = useState({ width: 0, height: 0 });
+
+  // Guardamos la última lectura y el contador para confirmar el código
+  const lecturaPrevia = useRef<string | null>(null);
+  const contadorLecturas = useRef<number>(0);
 
   useEffect(() => {
     if (!visible) return;
@@ -29,8 +30,67 @@ export function ScannerCamara({
 
   const permisoConcedido = permiso?.granted;
 
+  const handleLayout = (e: LayoutChangeEvent) => {
+    const { width, height } = e.nativeEvent.layout;
+    setLayout({ width, height });
+  };
+
+  // Validaciones físicas e integridad del formato
+  const esCodigoValido = (type: string, data: string): boolean => {
+    if (!data || data.trim().length === 0) return false;
+    if (type === "ean13") {
+      return /^\d{13}$/.test(data);
+    }
+    if (type === "code128") {
+      return data.length >= 4;
+    }
+    return data.length >= 3; // QR u otros
+  };
+
+  const handleBarcodeScanned = (result: BarcodeScanningResult) => {
+    if (!escaneando || !result.bounds) return;
+
+    const { data, type, bounds } = result;
+    const { origin, size } = bounds;
+    const padding = 5;
+
+    // 1. Filtro Espacial: Verificar que esté 100% dentro del cuadro
+    const estaDentro =
+      origin.x >= padding &&
+      origin.y >= padding &&
+      origin.x + size.width <= layout.width - padding &&
+      origin.y + size.height <= layout.height - padding;
+
+    if (!estaDentro) {
+      lecturaPrevia.current = null;
+      contadorLecturas.current = 0;
+      return;
+    }
+
+    // 2. Filtro de Formato: Descartar lecturas corruptas/incompletas
+    if (!esCodigoValido(type, data)) {
+      return;
+    }
+
+    // 3. Filtro de Concurrencia (Doble Confirmación):
+    // Requiere 2 lecturas idénticas seguidas para darlo por bueno
+    if (lecturaPrevia.current === data) {
+      contadorLecturas.current += 1;
+    } else {
+      lecturaPrevia.current = data;
+      contadorLecturas.current = 1;
+    }
+
+    // Solo cuando se confirma 2 veces consecutivas se emite el resultado
+    if (contadorLecturas.current >= 2) {
+      lecturaPrevia.current = null;
+      contadorLecturas.current = 0;
+      onCodigoDetectado(data);
+    }
+  };
+
   return (
-    <View style={styles.cameraWrapper} collapsable={false}>
+    <View style={styles.cameraWrapper} collapsable={false} onLayout={handleLayout}>
       {permisoConcedido ? (
         <>
           <CameraView
@@ -38,36 +98,19 @@ export function ScannerCamara({
             facing="back"
             enableTorch={flashOn}
             barcodeScannerSettings={{
+              // Restringe únicamente a las simbologías que realmente usas
               barcodeTypes: ["qr", "ean13", "code128"],
             }}
-            onBarcodeScanned={
-              escaneando ? ({ data }) => onCodigoDetectado(data) : undefined
-            }
+            onBarcodeScanned={escaneando ? handleBarcodeScanned : undefined}
           />
 
-          <TouchableOpacity
-            style={styles.btnFlash}
-            onPress={() => setFlashOn((p) => !p)}
-            activeOpacity={0.7}
-          >
-            <Ionicons
-              name={flashOn ? "flash" : "flash-outline"}
-              size={18}
-              color={flashOn ? "#F59E0B" : "#FFFFFF"}
-            />
+          <TouchableOpacity style={styles.btnFlash} onPress={() => setFlashOn((p) => !p)} activeOpacity={0.7}>
+            <Ionicons name={flashOn ? "flash" : "flash-outline"} size={18} color={flashOn ? "#F59E0B" : "#FFFFFF"} />
           </TouchableOpacity>
-
-          <View style={styles.scannerOverlay} pointerEvents="box-none">
-            <View style={styles.scannerCenter}>
-              <View style={styles.scannerTargetBox} />
-            </View>
-          </View>
 
           {!escaneando && (
             <View style={styles.loadingOverlay}>
-              <ThemedText style={styles.loadingText}>
-                Alineando cámara...
-              </ThemedText>
+              <ThemedText style={styles.loadingText}>Alineando cámara...</ThemedText>
             </View>
           )}
         </>
@@ -85,7 +128,7 @@ export function ScannerCamara({
 const styles = StyleSheet.create({
   cameraWrapper: {
     width: "100%",
-    height: 120,
+    height: 140,
     borderRadius: 10,
     overflow: "hidden",
     marginBottom: 10,
@@ -96,22 +139,6 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-  },
-  scannerOverlay: {
-    ...StyleSheet.absoluteFill,
-  },
-  scannerCenter: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  scannerTargetBox: {
-    width: 250,
-    height: 90,
-    borderWidth: 2,
-    borderColor: "#10B981",
-    borderRadius: 10,
-    backgroundColor: "transparent",
   },
   btnFlash: {
     position: "absolute",

@@ -77,11 +77,6 @@ export interface FormularioProductoProps {
 
 export function FormularioProducto(props: FormularioProductoProps) {
   const theme = useTheme();
-
-  // 🔑 Lógica del campo stock según el modo:
-  // - Ingreso: editable, label "Cantidad a ingresar"
-  // - Edición: bloqueado, label "Stock 🔒"
-  // - Creación: editable, label "Stock inicial"
   const stockLabel = props.esIngreso
     ? "Cantidad a ingresar"
     : props.esEdicion
