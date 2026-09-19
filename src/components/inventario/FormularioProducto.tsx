@@ -1,8 +1,9 @@
 import { ThemedText } from "@/components/themed-text";
+import type { AtributoProductoInput } from "@/database/productosService";
 import { useTheme } from "@/hooks/use-theme";
 import { Ionicons } from "@expo/vector-icons";
 import { useState } from "react";
-import { StyleSheet, TextInput, View } from "react-native";
+import { StyleSheet, TextInput, TouchableOpacity, View } from "react-native";
 
 interface FieldProps {
   label: string;
@@ -10,26 +11,15 @@ interface FieldProps {
   theme: any;
 }
 
-function Field({
-  label,
-  required,
-  theme,
-  ...inputProps
-}: FieldProps & React.ComponentProps<typeof TextInput>) {
+function Field({ label, required, theme, ...inputProps }: FieldProps & React.ComponentProps<typeof TextInput>) {
   const [focused, setFocused] = useState(false);
   const bloqueado = inputProps.editable === false;
 
   return (
     <View style={styles.fieldWrapper}>
-      <ThemedText
-        type="small"
-        style={[styles.fieldLabel, { color: theme.textSecondary }]}
-        numberOfLines={1}
-      >
+      <ThemedText type="small" style={[styles.fieldLabel, { color: theme.textSecondary }]} numberOfLines={1}>
         {label}
-        {required && (
-          <ThemedText style={{ color: theme.danger }}> *</ThemedText>
-        )}
+        {required && <ThemedText style={{ color: theme.danger }}> *</ThemedText>}
       </ThemedText>
       <TextInput
         {...inputProps}
@@ -61,10 +51,8 @@ export interface FormularioProductoProps {
   setNombre: (v: string) => void;
   marca: string;
   setMarca: (v: string) => void;
-  talla: string;
-  setTalla: (v: string) => void;
-  color: string;
-  setColor: (v: string) => void;
+  atributos: AtributoProductoInput[];
+  setAtributos: (v: AtributoProductoInput[]) => void;
   stock: string;
   setStock: (v: string) => void;
   precioCompra: string;
@@ -77,11 +65,7 @@ export interface FormularioProductoProps {
 
 export function FormularioProducto(props: FormularioProductoProps) {
   const theme = useTheme();
-  const stockLabel = props.esIngreso
-    ? "Cantidad a ingresar"
-    : props.esEdicion
-      ? "Stock 🔒"
-      : "Stock inicial";
+  const stockLabel = props.esIngreso ? "Cantidad a ingresar" : props.esEdicion ? "Stock 🔒" : "Stock inicial";
 
   const stockEditable = props.esIngreso || !props.esEdicion;
   const stockRequired = props.esIngreso || !props.esEdicion;
@@ -101,40 +85,11 @@ export function FormularioProducto(props: FormularioProductoProps) {
           />
         </View>
         <View style={styles.flexMarca}>
-          <Field
-            label="Marca"
-            theme={theme}
-            placeholder="Ej. Nike"
-            value={props.marca}
-            onChangeText={props.setMarca}
-            editable={!props.esIngreso}
-          />
+          <Field label="Marca" theme={theme} placeholder="Ej. Nike" value={props.marca} onChangeText={props.setMarca} editable={!props.esIngreso} />
         </View>
       </View>
 
       <View style={styles.row}>
-        <View style={styles.flex1}>
-          <Field
-            label="Talla"
-            required
-            theme={theme}
-            placeholder="42"
-            keyboardType="numeric"
-            value={props.talla}
-            onChangeText={props.setTalla}
-            editable={!props.esIngreso}
-          />
-        </View>
-        <View style={styles.flex1}>
-          <Field
-            label="Color"
-            theme={theme}
-            placeholder="Blanco"
-            value={props.color}
-            onChangeText={props.setColor}
-            editable={!props.esIngreso}
-          />
-        </View>
         <View style={styles.flex1}>
           <Field
             label={stockLabel}
@@ -148,6 +103,64 @@ export function FormularioProducto(props: FormularioProductoProps) {
           />
         </View>
       </View>
+
+      <View style={styles.attributesHeader}>
+        <ThemedText type="smallBold">Atributos</ThemedText>
+        {!props.esIngreso && (
+          <TouchableOpacity
+            onPress={() => props.setAtributos([...props.atributos, { clave: "", valor: "" }])}
+            accessibilityRole="button"
+            accessibilityLabel="Agregar atributo"
+          >
+            <ThemedText type="smallBold" style={{ color: theme.primary }}>
+              + Agregar
+            </ThemedText>
+          </TouchableOpacity>
+        )}
+      </View>
+
+      {props.atributos.map((atributo, index) => (
+        <View style={styles.attributeRow} key={index}>
+          <View style={styles.attributeField}>
+            <Field
+              label={index === 0 ? "Clave" : ""}
+              theme={theme}
+              placeholder=""
+              value={atributo.clave}
+              onChangeText={(clave) => {
+                const next = [...props.atributos];
+                next[index] = { ...next[index], clave };
+                props.setAtributos(next);
+              }}
+              editable={!props.esIngreso}
+            />
+          </View>
+          <View style={styles.attributeField}>
+            <Field
+              label={index === 0 ? "Valor" : ""}
+              theme={theme}
+              placeholder=""
+              value={atributo.valor}
+              onChangeText={(valor) => {
+                const next = [...props.atributos];
+                next[index] = { ...next[index], valor };
+                props.setAtributos(next);
+              }}
+              editable={!props.esIngreso}
+            />
+          </View>
+          {!props.esIngreso && (
+            <TouchableOpacity
+              style={styles.removeAttribute}
+              onPress={() => props.setAtributos(props.atributos.filter((_, itemIndex) => itemIndex !== index))}
+              accessibilityRole="button"
+              accessibilityLabel={`Eliminar atributo ${atributo.clave || index + 1}`}
+            >
+              <Ionicons name="trash-outline" size={18} color={theme.danger} />
+            </TouchableOpacity>
+          )}
+        </View>
+      ))}
 
       <View style={styles.row}>
         <View style={styles.flex1}>
@@ -186,11 +199,7 @@ export function FormularioProducto(props: FormularioProductoProps) {
             },
           ]}
         >
-          <Ionicons
-            name="information-circle-outline"
-            size={13}
-            color={theme.primary}
-          />
+          <Ionicons name="information-circle-outline" size={13} color={theme.primary} />
           <ThemedText
             type="small"
             style={{
@@ -247,6 +256,29 @@ const styles = StyleSheet.create({
   flex1: { flex: 1 },
   flexNombre: { flex: 1.6 },
   flexMarca: { flex: 1 },
+  attributesHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: 4,
+    marginBottom: 6,
+  },
+  attributeRow: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    gap: 8,
+    marginBottom: 8,
+  },
+  attributeField: {
+    flex: 1,
+    minWidth: 0,
+  },
+  removeAttribute: {
+    width: 36,
+    height: 40,
+    alignItems: "center",
+    justifyContent: "center",
+  },
 
   fieldWrapper: {
     width: "100%",

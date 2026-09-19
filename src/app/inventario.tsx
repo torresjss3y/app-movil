@@ -1,10 +1,4 @@
-import {
-  FiltrosInventario,
-  FiltroStock,
-  HeaderInventario,
-  ItemProducto,
-  ModalProducto,
-} from "@/components/inventario";
+import { FiltrosInventario, FiltroStock, HeaderInventario, ItemProducto, ModalProducto } from "@/components/inventario";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { MaxContentWidth, Spacing } from "@/constants/theme";
@@ -23,9 +17,7 @@ export default function InventarioScreen() {
   const [filtroStock, setFiltroStock] = useState<FiltroStock>("todos");
 
   const [modalVisible, setModalVisible] = useState(false);
-  const [productoEditando, setProductoEditando] = useState<ProductoDB | null>(
-    null,
-  );
+  const [productoEditando, setProductoEditando] = useState<ProductoDB | null>(null);
 
   const cargarProductos = useCallback(() => {
     setProductos(obtenerProductos());
@@ -43,20 +35,18 @@ export default function InventarioScreen() {
     return productos.filter((item) => {
       const coincideTexto =
         item.nombre.toLowerCase().includes(texto) ||
-        (item.codigo_barras &&
-          item.codigo_barras.toLowerCase().includes(texto)) ||
+        (item.codigo_barras && item.codigo_barras.toLowerCase().includes(texto)) ||
         (item.marca && item.marca.toLowerCase().includes(texto)) ||
-        (item.talla && item.talla.toLowerCase().includes(texto));
+        item.atributos.some((atributo) => atributo.clave.toLowerCase().includes(texto) || atributo.valor.toLowerCase().includes(texto));
 
       if (!coincideTexto) return false;
 
       if (filtroStock === "inactivos") return item.activo === 0;
       if (item.activo !== 1) return false;
 
-      const stockMinimo = item.stock_minimo ?? 2;
+      const stockMinimo = 2;
 
-      if (filtroStock === "bajo")
-        return item.stock > 0 && item.stock <= stockMinimo;
+      if (filtroStock === "bajo") return item.stock > 0 && item.stock <= stockMinimo;
       if (filtroStock === "agotado") return item.stock === 0;
       return true;
     });
@@ -66,9 +56,7 @@ export default function InventarioScreen() {
     const activos = productos.filter((p) => p.activo === 1);
     return {
       todos: activos.length,
-      bajo: activos.filter(
-        (p) => p.stock > 0 && p.stock <= (p.stock_minimo ?? 2),
-      ).length,
+      bajo: activos.filter((p) => p.stock > 0 && p.stock <= 2).length,
       agotado: activos.filter((p) => p.stock === 0).length,
       inactivos: productos.filter((p) => p.activo === 0).length,
     };
@@ -90,14 +78,9 @@ export default function InventarioScreen() {
   };
 
   return (
-    <ThemedView
-      style={[styles.container, { backgroundColor: theme.background }]}
-    >
+    <ThemedView style={[styles.container, { backgroundColor: theme.background }]}>
       <SafeAreaView style={styles.safeArea} edges={["top"]}>
-        <HeaderInventario
-          totalActivos={contadores.todos}
-          onAgregar={abrirNuevo}
-        />
+        <HeaderInventario totalActivos={contadores.todos} onAgregar={abrirNuevo} />
 
         <View style={styles.sectionMargin}>
           <TextInput
@@ -109,7 +92,7 @@ export default function InventarioScreen() {
                 color: theme.text,
               },
             ]}
-            placeholder="Buscar producto, marca, talla..."
+            placeholder="Buscar producto, marca o atributo..."
             placeholderTextColor={theme.textSecondary}
             value={busqueda}
             onChangeText={setBusqueda}
@@ -119,10 +102,7 @@ export default function InventarioScreen() {
           />
         </View>
 
-        <FiltrosInventario
-          filtroActual={filtroStock}
-          onCambiar={setFiltroStock}
-        />
+        <FiltrosInventario filtroActual={filtroStock} onCambiar={setFiltroStock} />
 
         <FlatList
           data={productosFiltrados}
@@ -131,27 +111,14 @@ export default function InventarioScreen() {
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
           onScrollBeginDrag={Keyboard.dismiss}
-          renderItem={({ item }) => (
-            <ItemProducto
-              producto={item}
-              onRefresh={cargarProductos}
-              onEditar={abrirEditar}
-            />
-          )}
+          renderItem={({ item }) => <ItemProducto producto={item} onRefresh={cargarProductos} onEditar={abrirEditar} />}
           ListEmptyComponent={
             <ThemedView style={styles.emptyContainer}>
-              <ThemedText style={{ fontSize: 40, marginBottom: 8 }}>
-              </ThemedText>
-              <ThemedText
-                type="smallBold"
-                style={{ color: theme.textSecondary }}
-              >
+              <ThemedText style={{ fontSize: 40, marginBottom: 8 }}></ThemedText>
+              <ThemedText type="smallBold" style={{ color: theme.textSecondary }}>
                 Sin productos
               </ThemedText>
-              <ThemedText
-                type="small"
-                style={{ color: theme.textSecondary, marginTop: 4 }}
-              >
+              <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: 4 }}>
                 Prueba con otro filtro o agrega uno nuevo.
               </ThemedText>
             </ThemedView>

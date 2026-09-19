@@ -1,6 +1,6 @@
 import * as SQLite from "expo-sqlite";
 
-const db = SQLite.openDatabaseSync("calzado_pos.db");
+const db = SQLite.openDatabaseSync("database_v2.db");
 
 export const initDB = () => {
   try {
@@ -15,16 +15,26 @@ export const initDB = () => {
         nombre TEXT NOT NULL,
         marca TEXT,
         categoria TEXT,
-        talla TEXT NOT NULL,
-        color TEXT,
         precio_compra REAL DEFAULT 0,
         precio_venta REAL NOT NULL,
         stock INTEGER NOT NULL DEFAULT 0,
-        stock_minimo INTEGER DEFAULT 2,
         activo INTEGER DEFAULT 1,
         fecha_creacion TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
         fecha_actualizacion TEXT
       );
+
+      CREATE TABLE IF NOT EXISTS producto_atributos (
+        id TEXT PRIMARY KEY NOT NULL,
+        producto_id TEXT NOT NULL,
+        clave TEXT NOT NULL,
+        valor TEXT NOT NULL,
+        orden INTEGER DEFAULT 0,
+        FOREIGN KEY (producto_id) REFERENCES productos(id) ON DELETE CASCADE,
+        UNIQUE (producto_id, clave)
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_atributos_producto ON producto_atributos(producto_id);
+      CREATE INDEX IF NOT EXISTS idx_atributos_clave ON producto_atributos(clave);
 
       -- 2. TABLA MOVIMIENTOS_STOCK
       CREATE TABLE IF NOT EXISTS movimientos_stock (
@@ -34,6 +44,7 @@ export const initDB = () => {
         cantidad INTEGER NOT NULL CHECK (cantidad > 0),
         motivo TEXT NOT NULL,
         nota TEXT,
+        lote_id TEXT,
         fecha TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
         FOREIGN KEY (producto_id) REFERENCES productos(id) ON DELETE CASCADE
       );
@@ -184,7 +195,6 @@ export const initDB = () => {
       CREATE INDEX IF NOT EXISTS idx_productos_codigo ON productos(codigo_barras);
       CREATE INDEX IF NOT EXISTS idx_productos_activo ON productos(activo);
       CREATE INDEX IF NOT EXISTS idx_productos_nombre ON productos(nombre);
-      CREATE INDEX IF NOT EXISTS idx_productos_talla ON productos(talla);
 
       CREATE INDEX IF NOT EXISTS idx_mov_producto ON movimientos_stock(producto_id);
       CREATE INDEX IF NOT EXISTS idx_mov_tipo ON movimientos_stock(tipo);
@@ -195,19 +205,16 @@ export const initDB = () => {
       CREATE INDEX IF NOT EXISTS idx_lotes_fecha ON lotes_movimiento(fecha);
     `);
 
-    console.log(
-      "Base de datos inicializada con soporte de movimientos de stock.",
-    );
+    const columnasMovimiento = db.getAllSync<{ name: string }>(`PRAGMA table_info(movimientos_stock);`);
+    if (!columnasMovimiento.some((columna) => columna.name === "lote_id")) {
+      db.execSync(`ALTER TABLE movimientos_stock ADD COLUMN lote_id TEXT;`);
+    }
+    db.execSync(`CREATE INDEX IF NOT EXISTS idx_mov_lote ON movimientos_stock(lote_id);`);
+
+    console.log("Base de datos inicializada con soporte de movimientos de stock.");
   } catch (error) {
     console.error("Error al inicializar la base de datos SQLite:", error);
   }
 };
 
-const columnas = db.getAllSync<{ name: string }>(
-  `PRAGMA table_info(movimientos_stock);`,
-);
-const tieneLoteId = columnas.some((c) => c.name === "lote_id");
-if (!tieneLoteId) {
-  db.execSync(`ALTER TABLE movimientos_stock ADD COLUMN lote_id TEXT;`);
-}
 export default db;

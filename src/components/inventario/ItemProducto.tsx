@@ -16,7 +16,7 @@ interface Props {
 export const ItemProducto = memo(function ItemProducto({ producto, onRefresh, onEditar }: Props) {
   const theme = useTheme();
   const sinStock = producto.stock === 0;
-  const stockMinimo = producto.stock_minimo ?? 2;
+  const stockMinimo = 2;
 
   // --- Estados de los diálogos ---
   const [opcionesVisible, setOpcionesVisible] = useState(false);
@@ -54,11 +54,7 @@ export const ItemProducto = memo(function ItemProducto({ producto, onRefresh, on
   // --- Colores de stock ---
   const colorStock = sinStock ? theme.danger : producto.stock <= stockMinimo ? theme.warning : theme.success;
 
-  const bgStock = sinStock
-    ? theme.danger + "22"
-    : producto.stock <= stockMinimo
-      ? theme.warning + "22"
-      : theme.success + "22";
+  const bgStock = sinStock ? theme.danger + "22" : producto.stock <= stockMinimo ? theme.warning + "22" : theme.success + "22";
 
   return (
     <>
@@ -98,7 +94,7 @@ export const ItemProducto = memo(function ItemProducto({ producto, onRefresh, on
 
             <ThemedText type="small" numberOfLines={1} style={[styles.sub, { color: theme.textSecondary }]}>
               {producto.marca || "Sin marca"}
-              {producto.talla ? ` · Talla ${producto.talla}` : ""}
+              {producto.atributos.length > 0 ? ` · ${producto.atributos.map((atributo) => `${atributo.clave}: ${atributo.valor}`).join(" · ")}` : ""}
             </ThemedText>
           </View>
 
@@ -166,11 +162,7 @@ export const ItemProducto = memo(function ItemProducto({ producto, onRefresh, on
           {`Se eliminará "${producto.nombre}" por completo. Esta acción no se puede deshacer.`}
         </Dialog.Description>
 
-        <Dialog.Button
-          label="Cancelar"
-          color={theme.textSecondary}
-          onPress={() => setConfirmarEliminarVisible(false)}
-        />
+        <Dialog.Button label="Cancelar" color={theme.textSecondary} onPress={() => setConfirmarEliminarVisible(false)} />
         <Dialog.Button label="Sí, Eliminar" color={theme.danger} onPress={confirmarEliminacionDefinitiva} />
       </Dialog.Container>
 

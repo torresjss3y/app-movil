@@ -24,7 +24,7 @@ export function ItemMovimiento({ lote, onPress }: Props) {
     lote.tipo === "entrada" ? "+" : lote.tipo === "salida" ? "-" : "";
 
   const emoji =
-    lote.tipo === "entrada" ? "➕" : lote.tipo === "salida" ? "➖" : "⚖️";
+    lote.tipo === "entrada" ? "" : lote.tipo === "salida" ? "" : "";
 
   return (
     <TouchableOpacity activeOpacity={0.7} onPress={onPress}>

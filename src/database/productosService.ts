@@ -11,24 +11,70 @@ export interface ProductoDB {
   nombre: string;
   marca?: string | null;
   categoria?: string | null;
-  talla: string;
-  color?: string | null;
   precio_compra?: number;
   precio_venta: number;
   stock: number;
-  stock_minimo?: number;
   activo?: number;
   fecha_creacion?: string;
   fecha_actualizacion?: string | null;
+  atributos: ProductoAtributo[];
 }
 
-export type NuevoProductoInput = Omit<
-  ProductoDB,
-  "fecha_creacion" | "fecha_actualizacion" | "activo"
->;
-
-export type EditarProductoInput = Partial<NuevoProductoInput> & {
+export interface ProductoAtributo {
   id: string;
+  producto_id: string;
+  clave: string;
+  valor: string;
+  orden: number;
+}
+
+export type AtributoProductoInput = Pick<ProductoAtributo, "clave" | "valor">;
+
+export type NuevoProductoInput = Omit<ProductoDB, "fecha_creacion" | "fecha_actualizacion" | "activo" | "atributos"> & {
+  atributos: AtributoProductoInput[];
+};
+
+export type EditarProductoInput = Omit<Partial<NuevoProductoInput>, "atributos"> & {
+  atributos?: AtributoProductoInput[];
+  id: string;
+};
+
+const obtenerAtributos = (productoId: string): ProductoAtributo[] =>
+  db.getAllSync<ProductoAtributo>(
+    `SELECT id, producto_id, clave, valor, orden
+     FROM producto_atributos
+     WHERE producto_id = ?
+     ORDER BY orden ASC, clave ASC;`,
+    [productoId],
+  );
+
+const adjuntarAtributos = (producto: Omit<ProductoDB, "atributos">): ProductoDB => ({
+  ...producto,
+  atributos: obtenerAtributos(producto.id),
+});
+
+const guardarAtributos = (productoId: string, atributos: AtributoProductoInput[]) => {
+  db.runSync(`DELETE FROM producto_atributos WHERE producto_id = ?;`, [productoId]);
+
+  const clavesGuardadas = new Set<string>();
+  atributos
+    .map((atributo) => ({
+      clave: atributo.clave.trim(),
+      valor: atributo.valor.trim(),
+    }))
+    .filter((atributo) => {
+      const claveNormalizada = atributo.clave.toLocaleLowerCase();
+      if (!atributo.clave || !atributo.valor || clavesGuardadas.has(claveNormalizada)) return false;
+      clavesGuardadas.add(claveNormalizada);
+      return true;
+    })
+    .forEach((atributo, index) => {
+      db.runSync(
+        `INSERT INTO producto_atributos (id, producto_id, clave, valor, orden)
+         VALUES (?, ?, ?, ?, ?);`,
+        [`${productoId}-${index}-${Date.now()}`, productoId, atributo.clave, atributo.valor, index],
+      );
+    });
 };
 
 // ============================================================
@@ -37,15 +83,7 @@ export type EditarProductoInput = Partial<NuevoProductoInput> & {
 
 export type TipoMovimiento = "entrada" | "salida" | "ajuste";
 
-export type MotivoMovimiento =
-  | "stock_inicial"
-  | "compra"
-  | "venta"
-  | "devolucion"
-  | "merma"
-  | "uso_interno"
-  | "ajuste"
-  | "otro";
+export type MotivoMovimiento = "stock_inicial" | "compra" | "venta" | "devolucion" | "merma" | "uso_interno" | "ajuste" | "otro";
 
 export interface MovimientoDB {
   id: string;
@@ -115,18 +153,14 @@ export interface RegistrarLoteInput {
 
 export const verificarEstructuraDB = () => {
   try {
-    const tablas = db.getAllSync<{ name: string }>(
-      `SELECT name FROM sqlite_master WHERE type='table' AND name='productos';`,
-    );
+    const tablas = db.getAllSync<{ name: string }>(`SELECT name FROM sqlite_master WHERE type='table' AND name='productos';`);
     if (tablas.length === 0) {
       console.warn("⚠️ LA TABLA 'productos' NO EXISTE EN LA BASE DE DATOS.");
       return false;
     }
     console.log("✅ Tabla 'productos' encontrada correctamente.");
 
-    const conteo = db.getFirstSync<{ total: number }>(
-      `SELECT COUNT(*) as total FROM productos;`,
-    );
+    const conteo = db.getFirstSync<{ total: number }>(`SELECT COUNT(*) as total FROM productos;`);
     console.log(`📦 Total de productos registrados: ${conteo?.total ?? 0}`);
     return true;
   } catch (error) {
@@ -142,9 +176,8 @@ export const verificarEstructuraDB = () => {
 // 1. OBTENER TODOS LOS PRODUCTOS
 export const obtenerProductos = (): ProductoDB[] => {
   try {
-    return db.getAllSync<ProductoDB>(
-      `SELECT * FROM productos ORDER BY nombre ASC;`,
-    );
+    const productos = db.getAllSync<Omit<ProductoDB, "atributos">>(`SELECT * FROM productos ORDER BY nombre ASC;`);
+    return productos.map(adjuntarAtributos);
   } catch (error) {
     console.error("Error al obtener productos:", error);
     return [];
@@ -155,11 +188,8 @@ export const obtenerProductos = (): ProductoDB[] => {
 export const obtenerProductoPorCodigo = (codigo: string): ProductoDB | null => {
   try {
     const codigoLimpio = codigo.trim();
-    const resultado = db.getFirstSync<ProductoDB>(
-      `SELECT * FROM productos WHERE codigo_barras = ? AND activo = 1;`,
-      [codigoLimpio],
-    );
-    return resultado || null;
+    const resultado = db.getFirstSync<Omit<ProductoDB, "atributos">>(`SELECT * FROM productos WHERE codigo_barras = ? AND activo = 1;`, [codigoLimpio]);
+    return resultado ? adjuntarAtributos(resultado) : null;
   } catch (error) {
     console.error("Error al buscar producto por código:", error);
     return null;
@@ -169,11 +199,8 @@ export const obtenerProductoPorCodigo = (codigo: string): ProductoDB | null => {
 // 3. BUSCAR POR ID
 export const obtenerProductoPorId = (id: string): ProductoDB | null => {
   try {
-    const resultado = db.getFirstSync<ProductoDB>(
-      `SELECT * FROM productos WHERE id = ?;`,
-      [id],
-    );
-    return resultado || null;
+    const resultado = db.getFirstSync<Omit<ProductoDB, "atributos">>(`SELECT * FROM productos WHERE id = ?;`, [id]);
+    return resultado ? adjuntarAtributos(resultado) : null;
   } catch (error) {
     console.error("Error al buscar producto por id:", error);
     return null;
@@ -182,53 +209,58 @@ export const obtenerProductoPorId = (id: string): ProductoDB | null => {
 
 // 4. CREAR PRODUCTO + REGISTRAR STOCK INICIAL COMO MOVIMIENTO
 export const crearProducto = (producto: NuevoProductoInput): boolean => {
+  let productoInsertado = false;
+
   try {
     const codigoBarrasLimpio = producto.codigo_barras?.trim() || null;
     const stockInicial = Number(producto.stock) || 0;
 
-    db.withTransactionSync(() => {
-      // 4.1. Insertar producto con stock = 0
+    db.runSync(
+      `INSERT INTO productos (
+        id, codigo_barras, nombre, marca, categoria,
+        precio_compra, precio_venta, stock
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, 0);`,
+      [
+        producto.id,
+        codigoBarrasLimpio,
+        producto.nombre.trim(),
+        producto.marca?.trim() || null,
+        producto.categoria?.trim() || null,
+        producto.precio_compra ?? 0,
+        producto.precio_venta,
+      ],
+    );
+    productoInsertado = true;
+
+    guardarAtributos(producto.id, producto.atributos ?? []);
+
+    if (stockInicial > 0) {
+      const loteId = `L-${Date.now()}`;
+
       db.runSync(
-        `INSERT INTO productos (
-          id, codigo_barras, nombre, marca, categoria, talla, color,
-          precio_compra, precio_venta, stock, stock_minimo
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?);`,
-        [
-          producto.id,
-          codigoBarrasLimpio,
-          producto.nombre.trim(),
-          producto.marca?.trim() || null,
-          producto.categoria?.trim() || null,
-          producto.talla.trim(),
-          producto.color?.trim() || null,
-          producto.precio_compra ?? 0,
-          producto.precio_venta,
-          producto.stock_minimo ?? 2,
-        ],
+        `INSERT INTO lotes_movimiento
+          (id, tipo, motivo, nota, total_productos, total_unidades)
+         VALUES (?, 'entrada', 'stock_inicial', 'Alta de producto', 1, ?);`,
+        [loteId, stockInicial],
       );
 
-      // 4.2. Si hay stock inicial, crear movimiento dentro de un lote
-      if (stockInicial > 0) {
-        const loteId = `L-${Date.now()}`;
-
-        db.runSync(
-          `INSERT INTO lotes_movimiento
-            (id, tipo, motivo, nota, total_productos, total_unidades)
-           VALUES (?, 'entrada', 'stock_inicial', 'Alta de producto', 1, ?);`,
-          [loteId, stockInicial],
-        );
-
-        db.runSync(
-          `INSERT INTO movimientos_stock
-            (id, producto_id, tipo, cantidad, motivo, nota, lote_id)
-           VALUES (?, ?, 'entrada', ?, 'stock_inicial', 'Alta de producto', ?);`,
-          [`${loteId}-${producto.id}`, producto.id, stockInicial, loteId],
-        );
-      }
-    });
+      db.runSync(
+        `INSERT INTO movimientos_stock
+          (id, producto_id, tipo, cantidad, motivo, nota, lote_id)
+         VALUES (?, ?, 'entrada', ?, 'stock_inicial', 'Alta de producto', ?);`,
+        [`${loteId}-${producto.id}`, producto.id, stockInicial, loteId],
+      );
+    }
 
     return true;
   } catch (error) {
+    if (productoInsertado) {
+      try {
+        db.runSync(`DELETE FROM productos WHERE id = ?;`, [producto.id]);
+      } catch (cleanupError) {
+        console.error("Error al limpiar alta incompleta de producto:", cleanupError);
+      }
+    }
     console.error("Error al crear producto:", error);
     return false;
   }
@@ -237,31 +269,28 @@ export const crearProducto = (producto: NuevoProductoInput): boolean => {
 // 5. ACTUALIZAR PRODUCTO (NO toca stock — el stock solo cambia por movimientos)
 export const actualizarProducto = (producto: EditarProductoInput): boolean => {
   try {
-    db.runSync(
-      `UPDATE productos SET
+    db.withTransactionSync(() => {
+      db.runSync(
+        `UPDATE productos SET
         codigo_barras = COALESCE(?, codigo_barras),
         nombre = COALESCE(?, nombre),
         marca = COALESCE(?, marca),
         categoria = COALESCE(?, categoria),
-        talla = COALESCE(?, talla),
-        color = COALESCE(?, color),
         precio_compra = COALESCE(?, precio_compra),
-        precio_venta = COALESCE(?, precio_venta),
-        stock_minimo = COALESCE(?, stock_minimo)
-      WHERE id = ?;`,
-      [
-        producto.codigo_barras?.trim() ?? null,
-        producto.nombre?.trim() ?? null,
-        producto.marca?.trim() ?? null,
-        producto.categoria?.trim() ?? null,
-        producto.talla?.trim() ?? null,
-        producto.color?.trim() ?? null,
-        producto.precio_compra ?? null,
-        producto.precio_venta ?? null,
-        producto.stock_minimo ?? null,
-        producto.id,
-      ],
-    );
+        precio_venta = COALESCE(?, precio_venta)
+        WHERE id = ?;`,
+        [
+          producto.codigo_barras?.trim() ?? null,
+          producto.nombre?.trim() ?? null,
+          producto.marca?.trim() ?? null,
+          producto.categoria?.trim() ?? null,
+          producto.precio_compra ?? null,
+          producto.precio_venta ?? null,
+          producto.id,
+        ],
+      );
+      if (producto.atributos) guardarAtributos(producto.id, producto.atributos);
+    });
     return true;
   } catch (error) {
     console.error("Error al actualizar producto:", error);
@@ -296,14 +325,7 @@ export const registrarMovimiento = (mov: MovimientoInput): boolean => {
       `INSERT INTO movimientos_stock
         (id, producto_id, tipo, cantidad, motivo, nota)
        VALUES (?, ?, ?, ?, ?, ?);`,
-      [
-        Date.now().toString(),
-        mov.producto_id,
-        mov.tipo,
-        mov.cantidad,
-        mov.motivo,
-        mov.nota?.trim() || null,
-      ],
+      [Date.now().toString(), mov.producto_id, mov.tipo, mov.cantidad, mov.motivo, mov.nota?.trim() || null],
     );
     return true;
   } catch (error) {
@@ -330,14 +352,7 @@ export const registrarLote = (input: RegistrarLoteInput): string | null => {
         `INSERT INTO lotes_movimiento
           (id, tipo, motivo, nota, total_productos, total_unidades)
          VALUES (?, ?, ?, ?, ?, ?);`,
-        [
-          loteId,
-          input.tipo,
-          input.motivo,
-          input.nota || null,
-          totalProductos,
-          totalUnidades,
-        ],
+        [loteId, input.tipo, input.motivo, input.nota || null, totalProductos, totalUnidades],
       );
 
       // 8.2. Crear cada movimiento individual
@@ -346,15 +361,7 @@ export const registrarLote = (input: RegistrarLoteInput): string | null => {
           `INSERT INTO movimientos_stock
             (id, producto_id, tipo, cantidad, motivo, nota, lote_id)
            VALUES (?, ?, ?, ?, ?, ?, ?);`,
-          [
-            `${loteId}-${item.producto_id}`,
-            item.producto_id,
-            input.tipo,
-            item.cantidad,
-            input.motivo,
-            item.nota || null,
-            loteId,
-          ],
+          [`${loteId}-${item.producto_id}`, item.producto_id, input.tipo, item.cantidad, input.motivo, item.nota || null, loteId],
         );
       }
     });
@@ -423,9 +430,7 @@ export const obtenerItemsDeLote = (loteId: string): ItemLoteUI[] => {
 };
 
 // 11. MOVIMIENTOS INDIVIDUALES (con nombre de producto)
-export const obtenerMovimientosConProducto = (
-  limite: number = 100,
-): MovimientoUI[] => {
+export const obtenerMovimientosConProducto = (limite: number = 100): MovimientoUI[] => {
   try {
     return db.getAllSync<MovimientoUI>(
       `SELECT
@@ -450,9 +455,7 @@ export const obtenerMovimientosConProducto = (
 };
 
 // 12. MOVIMIENTOS DE UN PRODUCTO ESPECÍFICO
-export const obtenerMovimientosPorProducto = (
-  productoId: string,
-): MovimientoDB[] => {
+export const obtenerMovimientosPorProducto = (productoId: string): MovimientoDB[] => {
   try {
     return db.getAllSync<MovimientoDB>(
       `SELECT * FROM movimientos_stock
@@ -467,9 +470,7 @@ export const obtenerMovimientosPorProducto = (
 };
 
 // 13. ÚLTIMOS MOVIMIENTOS GLOBALES
-export const obtenerMovimientosRecientes = (
-  limite: number = 50,
-): MovimientoDB[] => {
+export const obtenerMovimientosRecientes = (limite: number = 50): MovimientoDB[] => {
   try {
     return db.getAllSync<MovimientoDB>(
       `SELECT * FROM movimientos_stock
@@ -511,9 +512,7 @@ export const calcularStockDesdeMovimientos = (productoId: string): number => {
 };
 
 // 15. RESUMEN DE MOVIMIENTOS DE UN PRODUCTO
-export const obtenerResumenMovimientos = (
-  productoId: string,
-): ResumenMovimientos => {
+export const obtenerResumenMovimientos = (productoId: string): ResumenMovimientos => {
   try {
     const r = db.getFirstSync<{
       entradas: number;

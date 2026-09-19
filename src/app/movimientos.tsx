@@ -1,27 +1,14 @@
-import {
-  AccionesMovimiento,
-  DetalleMovimientoModal,
-  FiltrosMovimientos,
-  HeaderMetricas,
-  ItemMovimiento,
-  SesionEscaneo,
-} from "@/components/movimientos";
+import { DetalleMovimientoModal, FiltrosMovimientos, HeaderMetricas, ItemMovimiento } from "@/components/movimientos";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { MaxContentWidth, Spacing } from "@/constants/theme";
-import {
-  LoteUI,
-  obtenerLotes,
-  registrarLote,
-} from "@/database/productosService";
+import { LoteUI, obtenerLotes } from "@/database/productosService";
 import { useTheme } from "@/hooks/use-theme";
 import { useFocusEffect } from "expo-router";
 import { useCallback, useMemo, useState } from "react";
-import { Alert, ScrollView, StyleSheet, TextInput, View } from "react-native";
+import { ScrollView, StyleSheet, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { TipoFiltro } from "../types/movimientos";
-
-import type { ItemCarrito } from "@/components/movimientos/SesionEscaneo";
 
 export default function MovimientosScreen() {
   const theme = useTheme();
@@ -31,10 +18,6 @@ export default function MovimientosScreen() {
 
   const [loteSeleccionado, setLoteSeleccionado] = useState<LoteUI | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
-
-  const [sesionTipo, setSesionTipo] = useState<"entrada" | "salida" | null>(
-    null,
-  );
 
   const cargarLotes = useCallback(() => {
     setLotes(obtenerLotes(200));
@@ -56,10 +39,7 @@ export default function MovimientosScreen() {
 
       if (!texto) return true;
 
-      return (
-        l.motivo.toLowerCase().includes(texto) ||
-        (l.nota && l.nota.toLowerCase().includes(texto))
-      );
+      return l.motivo.toLowerCase().includes(texto) || (l.nota && l.nota.toLowerCase().includes(texto));
     });
   }, [lotes, busqueda, filtro]);
 
@@ -73,57 +53,11 @@ export default function MovimientosScreen() {
     setLoteSeleccionado(null);
   };
 
-  const handleIngreso = () => setSesionTipo("entrada");
-  const handleRetiro = () => setSesionTipo("salida");
-
-  const confirmarSesion = (
-    items: ItemCarrito[],
-    motivo: string,
-    nota: string,
-  ) => {
-    if (!sesionTipo) return;
-
-    const loteId = registrarLote({
-      tipo: sesionTipo,
-      motivo,
-      nota,
-      items: items.map((i) => ({
-        producto_id: i.producto.id,
-        cantidad: i.cantidad,
-      })),
-    });
-
-    if (loteId) {
-      Alert.alert(
-        "Éxito",
-        `Lote registrado con ${items.length} producto${
-          items.length !== 1 ? "s" : ""
-        }.`,
-      );
-      setSesionTipo(null);
-      cargarLotes();
-    } else {
-      Alert.alert("Error", "No se pudo registrar el lote.");
-    }
-  };
-
-  const cerrarSesion = () => setSesionTipo(null);
-
   return (
-    <ThemedView
-      style={[styles.container, { backgroundColor: theme.background }]}
-    >
+    <ThemedView style={[styles.container, { backgroundColor: theme.background }]}>
       <SafeAreaView style={styles.safeArea} edges={["top"]}>
-        <ScrollView
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-        >
+        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
           <HeaderMetricas gananciaHoy={0} gananciaTotal={0} />
-
-          <AccionesMovimiento
-            onIngreso={handleIngreso}
-            onRetiro={handleRetiro}
-          />
 
           <View style={styles.sectionMargin}>
             <TextInput
@@ -143,20 +77,11 @@ export default function MovimientosScreen() {
           </View>
 
           <View style={styles.section}>
-            <FiltrosMovimientos
-              filtroActivo={filtro}
-              alCambiarFiltro={setFiltro}
-            />
+            <FiltrosMovimientos filtroActivo={filtro} alCambiarFiltro={setFiltro} />
 
             <View style={styles.movementList}>
               {lotesFiltrados.length > 0 ? (
-                lotesFiltrados.map((l) => (
-                  <ItemMovimiento
-                    key={l.id}
-                    lote={l}
-                    onPress={() => abrirDetalle(l)}
-                  />
-                ))
+                lotesFiltrados.map((l) => <ItemMovimiento key={l.id} lote={l} onPress={() => abrirDetalle(l)} />)
               ) : (
                 <ThemedText type="small" style={styles.placeholderText}>
                   No hay movimientos registrados.
@@ -167,18 +92,7 @@ export default function MovimientosScreen() {
         </ScrollView>
       </SafeAreaView>
 
-      <DetalleMovimientoModal
-        visible={modalVisible}
-        lote={loteSeleccionado}
-        onClose={cerrarDetalle}
-      />
-
-      <SesionEscaneo
-        visible={sesionTipo !== null}
-        tipo={sesionTipo || "entrada"}
-        onClose={cerrarSesion}
-        onConfirmar={confirmarSesion}
-      />
+      <DetalleMovimientoModal visible={modalVisible} lote={loteSeleccionado} onClose={cerrarDetalle} />
     </ThemedView>
   );
 }

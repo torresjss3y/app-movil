@@ -18,10 +18,7 @@ export function HeaderMetricas({ gananciaHoy, gananciaTotal }: Props) {
         <ThemedText type="small" style={styles.metricLabel}>
           Ganancias de Hoy
         </ThemedText>
-        <ThemedText
-          type="smallBold"
-          style={[styles.successValue, { color: theme.success }]}
-        >
+        <ThemedText type="smallBold" style={[styles.successValue, { color: theme.success }]}>
           S/ {gananciaHoy.toFixed(2)}
         </ThemedText>
       </ThemedView>
@@ -30,10 +27,7 @@ export function HeaderMetricas({ gananciaHoy, gananciaTotal }: Props) {
         <ThemedText type="small" style={styles.metricLabel}>
           Ganancia Total
         </ThemedText>
-        <ThemedText
-          type="smallBold"
-          style={[styles.successValue, { color: theme.success }]}
-        >
+        <ThemedText type="smallBold" style={[styles.successValue, { color: theme.success }]}>
           S/ {gananciaTotal.toFixed(2)}
         </ThemedText>
       </ThemedView>

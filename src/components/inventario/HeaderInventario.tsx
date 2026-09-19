@@ -28,7 +28,7 @@ export function HeaderInventario({ totalActivos, onAgregar }: Props) {
         accessibilityRole="button"
         accessibilityLabel="Agregar producto"
       >
-        <ThemedText style={styles.iconButtonText}>+</ThemedText>
+        <ThemedText style={styles.iconButtonText}>+ Producto</ThemedText>
       </TouchableOpacity>
     </View>
   );
@@ -41,11 +41,14 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     marginBottom: 12,
   },
-  title: { fontSize: 26, fontWeight: "700" },
+  title: {
+    fontSize: 26,
+    fontWeight: "700",
+  },
   iconButton: {
-    width: 46,
+    width: 80,
     height: 46,
-    borderRadius: 23,
+    borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
     shadowColor: "#000",
@@ -55,9 +58,11 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   iconButtonText: {
+    textAlign: "center",
+    margin: 3,
     color: "#FFF",
-    fontSize: 26,
-    lineHeight: 28,
-    fontWeight: "300",
+    fontSize: 16,
+    lineHeight: 18,
+    fontWeight: "500",
   },
 });
