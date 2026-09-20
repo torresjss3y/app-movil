@@ -1,9 +1,11 @@
+import { FiltroStock } from "@/components/inventario";
 import { obtenerProductos, ProductoDB } from "@/database/productosService";
 import { useFocusEffect } from "expo-router";
 import { useCallback, useMemo, useState } from "react";
 
-export type FiltroStock = "todos" | "bajo" | "agotado" | "inactivos";
 
+
+export type { FiltroStock };
 export function useInventario() {
   const [productos, setProductos] = useState<ProductoDB[]>([]);
   const [busqueda, setBusqueda] = useState("");
@@ -65,3 +67,4 @@ export function useInventario() {
     cargarProductos,
   };
 }
+

@@ -1,3 +1,7 @@
+import { File, Paths } from "expo-file-system";
+import * as Sharing from "expo-sharing";
+import { Platform } from "react-native";
+
 import db from "./db";
 import { registrarLoteEnTransaccion } from "./productosService";
 
@@ -128,6 +132,144 @@ export function obtenerItemsDeVenta(ventaId: string): VentaItem[] {
 export function obtenerVentaCompleta(ventaId: string): VentaCompleta | null {
   const venta = db.getFirstSync<VentaResumen>(`SELECT * FROM ventas WHERE id = ?`, [ventaId]);
   return venta ? { ...venta, items: obtenerItemsDeVenta(ventaId) } : null;
+}
+
+// ---------------------------------------------------------------------
+// Reportes por rango de fechas
+// ---------------------------------------------------------------------
+
+export type RangoFecha = "hoy" | "semana" | "mes" | "todo";
+
+export interface ReporteVentas {
+  totalVendido: number;
+  totalGanancia: number;
+  totalVentas: number;
+  totalUnidades: number;
+}
+
+/**
+ * Devuelve el rango [desde, hasta] en formato 'YYYY-MM-DD HH:MM:SS' para
+ * poder compararlo con las fechas que guarda SQLite (datetime('now','localtime')).
+ *
+ * - hoy:    desde las 00:00 de hoy hasta ahora
+ * - semana: últimos 7 días
+ * - mes:    últimos 30 días
+ * - todo:   sin límite inferior (desde una fecha muy lejana)
+ */
+export function calcularRango(rango: RangoFecha, ahora: Date = new Date()): { desde: string; hasta: string } {
+  const hasta = formatearFechaSql(ahora);
+  const inicio = new Date(ahora);
+
+  if (rango === "hoy") {
+    inicio.setHours(0, 0, 0, 0);
+  } else if (rango === "semana") {
+    inicio.setDate(inicio.getDate() - 6);
+    inicio.setHours(0, 0, 0, 0);
+  } else if (rango === "mes") {
+    inicio.setDate(inicio.getDate() - 29);
+    inicio.setHours(0, 0, 0, 0);
+  } else {
+    // 'todo': una fecha claramente anterior a cualquier registro
+    inicio.setFullYear(1970, 0, 1);
+    inicio.setHours(0, 0, 0, 0);
+  }
+
+  return { desde: formatearFechaSql(inicio), hasta };
+}
+
+export function obtenerReporteVentas(desde: string, hasta: string): ReporteVentas {
+  try {
+    const cabecera = db.getFirstSync<{ total_vendido: number; total_ventas: number; total_unidades: number }>(
+      `SELECT
+         COALESCE(SUM(total), 0) AS total_vendido,
+         COUNT(*) AS total_ventas,
+         COALESCE(SUM(total_unidades), 0) AS total_unidades
+       FROM ventas
+       WHERE fecha BETWEEN ? AND ?;`,
+      [desde, hasta],
+    );
+
+    // Ganancia usando los precios guardados en cada línea de venta
+    const ganancia = db.getFirstSync<{ total: number }>(
+      `SELECT COALESCE(SUM(vi.cantidad * (vi.precio_venta_unitario - vi.precio_compra_unitario)), 0) AS total
+       FROM ventas_items vi
+       INNER JOIN ventas v ON v.id = vi.venta_id
+       WHERE v.fecha BETWEEN ? AND ?;`,
+      [desde, hasta],
+    );
+
+    return {
+      totalVendido: cabecera?.total_vendido ?? 0,
+      totalVentas: cabecera?.total_ventas ?? 0,
+      totalUnidades: cabecera?.total_unidades ?? 0,
+      totalGanancia: ganancia?.total ?? 0,
+    };
+  } catch (error) {
+    console.error("Error al obtener reporte de ventas:", error);
+    return { totalVendido: 0, totalGanancia: 0, totalVentas: 0, totalUnidades: 0 };
+  }
+}
+
+/**
+ * Genera el CSV con el detalle de ventas (una fila por venta) del rango dado.
+ * Usa punto y coma como separador para que Excel en español lo abra sin
+ * pedir configuración adicional.
+ */
+export function generarCsvVentas(desde: string, hasta: string): string {
+  const ventas = listarVentas(100000, desde, hasta);
+  const cabeceras = ["Folio", "Fecha", "Metodo de pago", "Productos", "Unidades", "Total"];
+  const filas = ventas.map((v) => [v.id, v.fecha, v.metodo_pago, String(v.total_items), String(v.total_unidades), v.total.toFixed(2)]);
+
+  return [cabeceras, ...filas]
+    .map((fila) => fila.map((celda) => escaparCeldaCsv(celda)).join(";"))
+    .join("\n");
+}
+
+function formatearFechaSql(fecha: Date): string {
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${fecha.getFullYear()}-${p(fecha.getMonth() + 1)}-${p(fecha.getDate())} ${p(fecha.getHours())}:${p(fecha.getMinutes())}:${p(fecha.getSeconds())}`;
+}
+
+function escaparCeldaCsv(valor: string): string {
+  if (valor.includes(";") || valor.includes('"') || valor.includes("\n")) {
+    return `"${valor.replace(/"/g, '""')}"`;
+  }
+  return valor;
+}
+
+/**
+ * Genera el CSV de ventas del rango dado, lo guarda como archivo y abre el
+ * diálogo nativo de compartir. Devuelve true si se generó correctamente.
+ */
+export async function exportarCsvVentas(desde: string, hasta: string, rango: RangoFecha = "todo"): Promise<boolean> {
+  try {
+    const csv = generarCsvVentas(desde, hasta);
+
+    const ahora = new Date();
+    const sello = [ahora.getFullYear(), String(ahora.getMonth() + 1).padStart(2, "0"), String(ahora.getDate()).padStart(2, "0")].join("-");
+    const nombreArchivo = `reporte-ventas-${rango}-${sello}.csv`;
+
+    const archivo = new File(Paths.cache, nombreArchivo);
+    if (archivo.exists) archivo.delete();
+    archivo.create();
+    archivo.write(csv);
+
+    const disponible = await Sharing.isAvailableAsync();
+    if (!disponible || Platform.OS === "web") {
+      console.warn("El compartir archivos no está disponible; CSV generado en caché.");
+      return true;
+    }
+
+    await Sharing.shareAsync(archivo.uri, {
+      mimeType: "text/csv",
+      dialogTitle: "Compartir reporte de ventas (CSV)",
+      UTI: "public.comma-separated-values-text",
+    });
+    return true;
+  } catch (error) {
+    console.error("Error al exportar CSV de ventas:", error);
+    return false;
+  }
 }
 
 export function generarTextoBoleta(venta: VentaCompleta): string {

@@ -2,6 +2,7 @@ import { AccionesMovimiento, DetalleMovimientoModal, FiltrosMovimientos, HeaderM
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { MaxContentWidth, Spacing } from "@/constants/theme";
+import { Ionicons } from "@expo/vector-icons";
 import { LoteUI, MetricasResumen, obtenerLotes, obtenerMetricas } from "@/database/productosService";
 import { useTheme } from "@/hooks/use-theme";
 import { useFocusEffect } from "expo-router";
@@ -73,10 +74,23 @@ export default function MovimientosScreen() {
     <ThemedView style={[styles.container, { backgroundColor: theme.background }]}>
       <SafeAreaView style={styles.safeArea} edges={["top"]}>
         <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-          {/* 1. Métricas */}
+          {/* 1. Título + contador */}
+          <View style={styles.header}>
+            <ThemedText type="subtitle">Movimientos</ThemedText>
+            <View style={[styles.headerBadge, { backgroundColor: theme.backgroundMuted, borderColor: theme.border }]}>
+              <ThemedText type="smallBold" style={{ color: theme.textSecondary }}>
+                {lotes.length}
+              </ThemedText>
+            </View>
+          </View>
+
+          {/* 2. Métricas */}
           <HeaderMetricas metricas={metricas} />
 
-          {/* 2. Búsqueda + Filtros */}
+          {/* 3. Ingreso / Retiro */}
+          <AccionesMovimiento onIngreso={abrirIngreso} onRetiro={abrirRetiro} />
+
+          {/* 4. Búsqueda + Filtros */}
           <View style={styles.section}>
             <TextInput
               style={[
@@ -96,17 +110,20 @@ export default function MovimientosScreen() {
             <FiltrosMovimientos filtroActivo={filtro} alCambiarFiltro={setFiltro} />
           </View>
 
-          {/* 3. Ingreso / Retiro */}
-          <AccionesMovimiento onIngreso={abrirIngreso} onRetiro={abrirRetiro} />
-
-          {/* 4. Lista de movimientos */}
+          {/* 5. Lista de movimientos */}
           <View style={styles.movementList}>
             {lotesFiltrados.length > 0 ? (
               lotesFiltrados.map((l) => <ItemMovimiento key={l.id} lote={l} onPress={() => abrirDetalle(l)} />)
             ) : (
-              <ThemedText type="small" style={styles.placeholderText}>
-                No hay movimientos registrados.
-              </ThemedText>
+              <View style={styles.emptyState}>
+                <Ionicons name="swap-horizontal-outline" size={40} color={theme.textSecondary} />
+                <ThemedText type="smallBold" style={{ color: theme.textSecondary, marginTop: 8 }}>
+                  No hay movimientos
+                </ThemedText>
+                <ThemedText type="small" style={styles.placeholderText}>
+                  Registra un ingreso o retiro para comenzar.
+                </ThemedText>
+              </View>
             )}
           </View>
         </ScrollView>
@@ -131,8 +148,28 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     paddingHorizontal: Spacing.three,
     paddingTop: Spacing.three,
-    paddingBottom: Spacing.three,
+    paddingBottom: Spacing.four,
     gap: Spacing.three,
+  },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: Spacing.two,
+  },
+  headerBadge: {
+    minWidth: 28,
+    height: 28,
+    paddingHorizontal: 8,
+    borderRadius: 14,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  emptyState: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: Spacing.five,
   },
   searchInput: {
     height: 46,
@@ -146,6 +183,6 @@ const styles = StyleSheet.create({
   placeholderText: {
     opacity: 0.6,
     textAlign: "center",
-    marginVertical: 12,
+    marginTop: 4,
   },
 });

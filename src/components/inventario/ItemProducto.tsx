@@ -1,7 +1,7 @@
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { Spacing } from "@/constants/theme";
-import { desactivarProducto, eliminarProducto, ProductoDB } from "@/database/productosService";
+import { activarProducto, desactivarProducto, eliminarProducto, ProductoDB } from "@/database/productosService";
 import { useTheme } from "@/hooks/use-theme";
 import { Ionicons } from "@expo/vector-icons";
 import { memo, useState } from "react";
@@ -16,53 +16,68 @@ interface Props {
 
 const STOCK_MINIMO = 2;
 
+// Vista activa del único diálogo. Evitamos montar varios Dialog.Container a la
+// vez: en Android los modales nativos simultáneos se pisan y los botones dejan
+// de responder ("no hace nada").
+type VistaDialogo = "cerrado" | "opciones" | "confirmarEliminar" | "info";
+
 export const ItemProducto = memo(function ItemProducto({ producto, onRefresh, onEditar }: Props) {
   const theme = useTheme();
   const sinStock = producto.stock === 0;
   const bajoStock = !sinStock && producto.stock <= STOCK_MINIMO;
 
-  // --- Estados de los diálogos ---
-  const [opcionesVisible, setOpcionesVisible] = useState(false);
-  const [confirmarEliminarVisible, setConfirmarEliminarVisible] = useState(false);
-  const [infoVisible, setInfoVisible] = useState(false);
+  // Un solo diálogo con contenido dinámico (evita conflicto de modales nativos).
+  const [vista, setVista] = useState<VistaDialogo>("cerrado");
   const [infoMensaje, setInfoMensaje] = useState("");
+  const [infoTitulo, setInfoTitulo] = useState("Aviso");
+
+  const cerrarDialogo = () => setVista("cerrado");
 
   // --- Acciones ---
-  const abrirOpciones = () => setOpcionesVisible(true);
+  const abrirOpciones = () => setVista("opciones");
 
   const handleEditar = () => {
-    setOpcionesVisible(false);
+    setVista("cerrado");
     onEditar(producto);
   };
 
-  const handleEliminarPaso1 = () => {
-    setOpcionesVisible(false);
-    setTimeout(() => setConfirmarEliminarVisible(true), 150);
-  };
+  // No usamos setTimeout + otro modal: solo cambiamos la vista del mismo diálogo.
+  const handleEliminarPaso1 = () => setVista("confirmarEliminar");
 
   const handleDesactivar = () => {
-    setOpcionesVisible(false);
     if (desactivarProducto(producto.id)) {
-      setInfoMensaje("Producto desactivado. Puedes verlo desde el filtro de inactivos.");
-      setInfoVisible(true);
-      onRefresh();
+      setInfoTitulo("Producto desactivado");
+      setInfoMensaje("Ya no aparece en el inventario activo. Toca el filtro «Inactivos» para verlo y reactivarlo.");
     } else {
-      setInfoMensaje("No se pudo desactivar el producto.");
-      setInfoVisible(true);
+      setInfoTitulo("No se pudo desactivar");
+      setInfoMensaje("Ocurrió un problema al desactivar el producto. Inténtalo de nuevo.");
     }
+    setVista("info");
+    onRefresh();
+  };
+
+  const handleActivar = () => {
+    if (activarProducto(producto.id)) {
+      setInfoTitulo("Producto reactivado");
+      setInfoMensaje("El producto vuelve a estar activo en el inventario.");
+    } else {
+      setInfoTitulo("No se pudo reactivar");
+      setInfoMensaje("Ocurrió un problema al reactivar el producto. Inténtalo de nuevo.");
+    }
+    setVista("info");
+    onRefresh();
   };
 
   const confirmarEliminacionDefinitiva = () => {
-    setConfirmarEliminarVisible(false);
-
     if (eliminarProducto(producto.id)) {
-      setInfoMensaje("Producto eliminado por completo.");
-      setInfoVisible(true);
-      onRefresh();
+      setInfoTitulo("Producto eliminado");
+      setInfoMensaje("El producto se eliminó por completo del inventario.");
     } else {
-      setInfoMensaje("No se pudo eliminar. Si tiene ventas registradas, desactívalo en su lugar.");
-      setInfoVisible(true);
+      setInfoTitulo("No se pudo eliminar");
+      setInfoMensaje("Tiene ventas registradas asociadas. Desactívalo en su lugar para conservar el historial.");
     }
+    setVista("info");
+    onRefresh();
   };
 
   // --- Cálculos derivados ---
@@ -75,9 +90,6 @@ export const ItemProducto = memo(function ItemProducto({ producto, onRefresh, on
   const subtexto = [producto.marca, producto.categoria].filter(Boolean).join(" · ") || "Sin marca";
 
   const atributosTexto = producto.atributos.length > 0 ? producto.atributos.map((a) => `${a.clave}: ${a.valor}`).join(" · ") : null;
-
-  const mensajeOpciones = `¿Qué acción deseas realizar sobre "${producto.nombre}"?`;
-  const mensajeEliminar = `Se eliminará "${producto.nombre}" por completo. Esta acción no se puede deshacer.`;
 
   return (
     <>
@@ -129,31 +141,35 @@ export const ItemProducto = memo(function ItemProducto({ producto, onRefresh, on
         </TouchableOpacity>
       </ThemedView>
 
-      {/* --- Diálogo: Opciones --- */}
-      <Dialog.Container visible={opcionesVisible} onBackdropPress={() => setOpcionesVisible(false)} contentStyle={{ backgroundColor: theme.card, borderRadius: 16 }}>
-        <Dialog.Title style={{ color: theme.text }}>Opciones</Dialog.Title>
-        <Dialog.Description style={{ color: theme.textSecondary }}>{mensajeOpciones}</Dialog.Description>
+      {/* --- Diálogo único (contenido dinámico) --- */}
+      <Dialog.Container visible={vista !== "cerrado"} onBackdropPress={cerrarDialogo} contentStyle={{ backgroundColor: theme.card, borderRadius: 16 }}>
+        {vista === "opciones" && (
+          <>
+            <Dialog.Title style={{ color: theme.text }}>Opciones</Dialog.Title>
+            <Dialog.Description style={{ color: theme.textSecondary }}>{`¿Qué acción deseas realizar sobre "${producto.nombre}"?`}</Dialog.Description>
+            <Dialog.Button label="Editar" color={theme.primary ?? "#3B82F6"} onPress={handleEditar} />
+            {producto.activo === 1 ? <Dialog.Button label="Desactivar" color={theme.warning} onPress={handleDesactivar} /> : <Dialog.Button label="Activar" color={theme.success ?? "#30A46C"} onPress={handleActivar} />}
+            <Dialog.Button label="Eliminar" color={theme.danger} onPress={handleEliminarPaso1} />
+            <Dialog.Button label="Cancelar" color={theme.textSecondary} onPress={cerrarDialogo} />
+          </>
+        )}
 
-        <Dialog.Button label="Editar" color={theme.primary ?? "#3B82F6"} onPress={handleEditar} />
-        {producto.activo === 1 && <Dialog.Button label="Desactivar" color={theme.warning} onPress={handleDesactivar} />}
-        <Dialog.Button label="Eliminar" color={theme.danger} onPress={handleEliminarPaso1} />
-        <Dialog.Button label="Cancelar" color={theme.textSecondary} onPress={() => setOpcionesVisible(false)} />
-      </Dialog.Container>
+        {vista === "confirmarEliminar" && (
+          <>
+            <Dialog.Title style={{ color: theme.text }}>Eliminar definitivamente</Dialog.Title>
+            <Dialog.Description style={{ color: theme.textSecondary }}>{`Se eliminará "${producto.nombre}" por completo. Esta acción no se puede deshacer.`}</Dialog.Description>
+            <Dialog.Button label="Cancelar" color={theme.textSecondary} onPress={cerrarDialogo} />
+            <Dialog.Button label="Sí, eliminar" color={theme.danger} onPress={confirmarEliminacionDefinitiva} />
+          </>
+        )}
 
-      {/* --- Diálogo: Confirmar eliminación --- */}
-      <Dialog.Container visible={confirmarEliminarVisible} onBackdropPress={() => setConfirmarEliminarVisible(false)} contentStyle={{ backgroundColor: theme.card, borderRadius: 16 }}>
-        <Dialog.Title style={{ color: theme.text }}>Eliminar definitivamente</Dialog.Title>
-        <Dialog.Description style={{ color: theme.textSecondary }}>{mensajeEliminar}</Dialog.Description>
-
-        <Dialog.Button label="Cancelar" color={theme.textSecondary} onPress={() => setConfirmarEliminarVisible(false)} />
-        <Dialog.Button label="Sí, eliminar" color={theme.danger} onPress={confirmarEliminacionDefinitiva} />
-      </Dialog.Container>
-
-      {/* --- Diálogo: Info / Error --- */}
-      <Dialog.Container visible={infoVisible} onBackdropPress={() => setInfoVisible(false)} contentStyle={{ backgroundColor: theme.card, borderRadius: 16 }}>
-        <Dialog.Title style={{ color: theme.text }}>Aviso</Dialog.Title>
-        <Dialog.Description style={{ color: theme.textSecondary }}>{infoMensaje}</Dialog.Description>
-        <Dialog.Button label="OK" color={theme.primary ?? "#3B82F6"} onPress={() => setInfoVisible(false)} />
+        {vista === "info" && (
+          <>
+            <Dialog.Title style={{ color: theme.text }}>{infoTitulo}</Dialog.Title>
+            <Dialog.Description style={{ color: theme.textSecondary }}>{infoMensaje}</Dialog.Description>
+            <Dialog.Button label="OK" color={theme.primary ?? "#3B82F6"} onPress={cerrarDialogo} />
+          </>
+        )}
       </Dialog.Container>
     </>
   );

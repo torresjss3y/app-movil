@@ -70,6 +70,41 @@ const formatearFecha = (fecha: string): string => {
   }
 };
 
+const formatearFolio = (id: string): string => {
+  return `#${id.slice(-6).toUpperCase()}`;
+};
+
+const pluralizar = (n: number, singular: string, plural: string): string => `${n} ${n === 1 ? singular : plural}`;
+
+// --- Chip reutilizable -------------------------------------------------------
+
+function Chip({ icon, label, color, bg }: { icon: keyof typeof Ionicons.glyphMap; label: string; color: string; bg: string }) {
+  return (
+    <View style={[chipStyles.chip, { backgroundColor: bg }]}>
+      <Ionicons name={icon} size={10} color={color} />
+      <ThemedText type="small" style={[chipStyles.chipText, { color }]} numberOfLines={1}>
+        {label}
+      </ThemedText>
+    </View>
+  );
+}
+
+const chipStyles = StyleSheet.create({
+  chip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    maxWidth: 140,
+  },
+  chipText: {
+    fontSize: 10,
+    fontWeight: "600",
+  },
+});
+
 // --- Componente --------------------------------------------------------------
 
 export function DetalleMovimientoModal({ visible, lote, onClose }: Props) {
@@ -90,9 +125,11 @@ export function DetalleMovimientoModal({ visible, lote, onClose }: Props) {
 
   const signo = lote.tipo === "entrada" ? "+" : lote.tipo === "salida" ? "-" : "";
 
-  const motivoTexto = MOTIVO_LABEL[lote.motivo] ?? lote.motivo.replace(/_/g, " ");
+  const motivoTexto = MOTIVO_LABEL[lote.motivo] ?? (lote.motivo ?? "").replace(/_/g, " ");
 
   const etiquetaTotal = lote.tipo === "entrada" ? "Total ingresado" : lote.tipo === "salida" ? "Total retirado" : "Total ajustado";
+
+  const totalProductos = lote.total_productos ?? items.length;
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
@@ -112,7 +149,7 @@ export function DetalleMovimientoModal({ visible, lote, onClose }: Props) {
                 {config.descripcion}
               </ThemedText>
               <ThemedText type="small" style={[styles.headerFecha, { color: theme.textTertiary }]}>
-                {formatearFecha(lote.fecha)}
+                {formatearFecha(lote.fecha)} · {formatearFolio(lote.id)}
               </ThemedText>
             </View>
 
@@ -123,6 +160,27 @@ export function DetalleMovimientoModal({ visible, lote, onClose }: Props) {
 
           {/* ── Divisor ─────────────────────────────────────── */}
           <View style={[styles.divider, { backgroundColor: theme.divider }]} />
+
+          {/* ── Nota del lote ──────────────────────────────── */}
+          {lote.nota ? (
+            <>
+              <View
+                style={[
+                  styles.notaBox,
+                  {
+                    backgroundColor: theme.card,
+                    borderColor: theme.divider,
+                  },
+                ]}
+              >
+                <Ionicons name="document-text-outline" size={14} color={theme.textSecondary} />
+                <ThemedText type="small" style={[styles.notaTexto, { color: theme.textSecondary }]}>
+                  {lote.nota}
+                </ThemedText>
+              </View>
+              <View style={[styles.divider, { backgroundColor: theme.divider }]} />
+            </>
+          ) : null}
 
           {/* ── Sección: Productos ─────────────────────────── */}
           <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false} nestedScrollEnabled>
@@ -136,8 +194,11 @@ export function DetalleMovimientoModal({ visible, lote, onClose }: Props) {
               </ThemedText>
             ) : (
               items.map((item, index) => {
-                const secundarios = [item.producto_marca, item.producto_categoria].filter(Boolean);
-                const subtexto = secundarios.length > 0 ? secundarios.join(" · ") : "Sin marca";
+                const esMixta = item.tipo && item.tipo !== lote.tipo;
+                const signoItem = item.tipo === "entrada" ? "+" : item.tipo === "salida" ? "-" : "";
+                const motivoItem = item.motivo ? (MOTIVO_LABEL[item.motivo] ?? item.motivo.replace(/_/g, " ")) : null;
+
+                const colorCantidad = esMixta ? theme.warning : colorTipo;
 
                 return (
                   <View key={item.id}>
@@ -146,12 +207,26 @@ export function DetalleMovimientoModal({ visible, lote, onClose }: Props) {
                         <ThemedText type="smallBold" numberOfLines={1}>
                           {item.producto_nombre}
                         </ThemedText>
-                        <ThemedText type="small" numberOfLines={1} style={[styles.productoSub, { color: theme.textSecondary }]}>
-                          {subtexto}
-                        </ThemedText>
+
+                        {/* Chips: marca + categoría (+ motivo si es mixta) */}
+                        {(item.producto_marca || item.producto_categoria || (esMixta && motivoItem)) && (
+                          <View style={styles.chipsRow}>
+                            {item.producto_marca ? <Chip icon="pricetag-outline" label={item.producto_marca} color={theme.textSecondary} bg={theme.backgroundElement ?? theme.card} /> : null}
+                            {item.producto_categoria ? <Chip icon="folder-outline" label={item.producto_categoria} color={theme.textSecondary} bg={theme.backgroundElement ?? theme.card} /> : null}
+                            {esMixta && motivoItem ? <Chip icon="git-compare-outline" label={motivoItem} color={theme.warning} bg={theme.warningBackground ?? theme.card} /> : null}
+                          </View>
+                        )}
+
+                        {/* Nota por línea */}
+                        {item.nota ? (
+                          <ThemedText type="small" numberOfLines={2} style={[styles.productoNota, { color: theme.textTertiary }]}>
+                            {item.nota}
+                          </ThemedText>
+                        ) : null}
                       </View>
-                      <ThemedText type="smallBold" style={[styles.cantidad, { color: colorTipo }]}>
-                        {signo}
+
+                      <ThemedText type="smallBold" style={[styles.cantidad, { color: colorCantidad }]}>
+                        {signoItem}
                         {item.cantidad}
                       </ThemedText>
                     </View>
@@ -183,6 +258,13 @@ export function DetalleMovimientoModal({ visible, lote, onClose }: Props) {
               </ThemedText>
             </View>
           </View>
+
+          {/* ── Resumen productos/unidades ─────────────────── */}
+          <ThemedText type="small" style={[styles.totalProductos, { color: theme.textTertiary }]}>
+            {pluralizar(totalProductos, "producto", "productos")}
+            {" · "}
+            {pluralizar(lote.total_unidades, "unidad", "unidades")}
+          </ThemedText>
         </View>
       </View>
     </Modal>
@@ -244,11 +326,19 @@ const styles = StyleSheet.create({
     width: "100%",
   },
 
-  // Meta
-  metaLine: {
+  // Nota del lote
+  notaBox: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: Spacing.two,
+    padding: Spacing.two,
+    borderRadius: 8,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  notaTexto: {
+    flex: 1,
     fontSize: 12,
     fontStyle: "italic",
-    marginTop: -Spacing.one,
   },
 
   // Sección de productos
@@ -281,9 +371,16 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 0,
   },
-  productoSub: {
+  chipsRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 4,
+    marginTop: 3,
+  },
+  productoNota: {
     fontSize: 11,
-    marginTop: 1,
+    fontStyle: "italic",
+    marginTop: 3,
   },
   cantidad: {
     fontSize: 15,

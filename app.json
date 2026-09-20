@@ -35,6 +35,9 @@
       ],
       "@react-native-vector-icons/material-design-icons",
       "expo-sqlite",
+      "expo-file-system",
+      "expo-sharing",
+      "expo-document-picker",
       [
         "expo-camera",
         {

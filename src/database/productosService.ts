@@ -359,6 +359,16 @@ export const desactivarProducto = (id: string): boolean => {
   }
 };
 
+export const activarProducto = (id: string): boolean => {
+  try {
+    const resultado = db.runSync(`UPDATE productos SET activo = 1 WHERE id = ?;`, [id]);
+    return resultado.changes > 0;
+  } catch (error) {
+    console.error("Error al activar producto:", error);
+    return false;
+  }
+};
+
 // ============================================================
 // 5. MOVIMIENTOS
 // ============================================================

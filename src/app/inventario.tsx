@@ -1,12 +1,13 @@
 import { FiltrosInventario, FiltroStock, HeaderInventario, ItemProducto, ModalProducto } from "@/components/inventario";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
-import { MaxContentWidth, Spacing } from "@/constants/theme";
+import { BottomTabInset, MaxContentWidth, Spacing } from "@/constants/theme";
 import { obtenerProductos, ProductoDB } from "@/database/productosService";
 import { useTheme } from "@/hooks/use-theme";
+import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "expo-router";
 import { useCallback, useMemo, useState } from "react";
-import { FlatList, Keyboard, StyleSheet, TextInput, View } from "react-native";
+import { FlatList, Keyboard, StyleSheet, TextInput, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function InventarioScreen() {
@@ -80,7 +81,7 @@ export default function InventarioScreen() {
   return (
     <ThemedView style={[styles.container, { backgroundColor: theme.background }]}>
       <SafeAreaView style={styles.safeArea} edges={["top"]}>
-        <HeaderInventario totalActivos={contadores.todos} onAgregar={abrirNuevo} />
+        <HeaderInventario totalActivos={contadores.todos} />
 
         <View style={styles.sectionMargin}>
           <TextInput
@@ -102,7 +103,7 @@ export default function InventarioScreen() {
           />
         </View>
 
-        <FiltrosInventario filtroActual={filtroStock} onCambiar={setFiltroStock} />
+        <FiltrosInventario filtroActual={filtroStock} onCambiar={setFiltroStock} contadores={contadores} />
 
         <FlatList
           data={productosFiltrados}
@@ -114,8 +115,8 @@ export default function InventarioScreen() {
           renderItem={({ item }) => <ItemProducto producto={item} onRefresh={cargarProductos} onEditar={abrirEditar} />}
           ListEmptyComponent={
             <ThemedView style={styles.emptyContainer}>
-              <ThemedText style={{ fontSize: 40, marginBottom: 8 }}></ThemedText>
-              <ThemedText type="smallBold" style={{ color: theme.textSecondary }}>
+              <Ionicons name="cube-outline" size={40} color={theme.textSecondary} />
+              <ThemedText type="smallBold" style={{ color: theme.textSecondary, marginTop: 8 }}>
                 Sin productos
               </ThemedText>
               <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: 4 }}>
@@ -124,6 +125,20 @@ export default function InventarioScreen() {
             </ThemedView>
           }
         />
+
+        {/* Botón flotante: Nuevo producto (cómodo para el pulgar) */}
+        <TouchableOpacity
+          style={[styles.fab, { backgroundColor: theme.primary }]}
+          onPress={abrirNuevo}
+          activeOpacity={0.85}
+          accessibilityRole="button"
+          accessibilityLabel="Nuevo producto"
+        >
+          <Ionicons name="add" size={22} color="#FFF" />
+          <ThemedText type="smallBold" style={{ color: "#FFF", marginLeft: 6 }}>
+            Nuevo producto
+          </ThemedText>
+        </TouchableOpacity>
 
         <ModalProducto
           key={productoEditando?.id ?? "nuevo"}
@@ -156,11 +171,26 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   listContent: {
-    paddingBottom: Spacing.four,
+    paddingBottom: BottomTabInset + 72,
     gap: 8,
   },
   emptyContainer: {
     padding: Spacing.four,
     alignItems: "center",
+  },
+  fab: {
+    position: "absolute",
+    right: Spacing.four,
+    bottom: BottomTabInset + Spacing.two,
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    height: 52,
+    borderRadius: 26,
+    shadowColor: "#000",
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 6,
   },
 });

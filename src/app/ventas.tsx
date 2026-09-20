@@ -1,13 +1,14 @@
 import { ThemedText } from "@/components/themed-text";
+import { FiltrosFecha, ResumenVentas } from "@/components/ventas/FiltrosFecha";
 import { ModalVentas } from "@/components/ventas/ModalVentas";
 import { TicketVenta } from "@/components/ventas/TicketVenta";
-import { Spacing } from "@/constants/theme";
-import { listarVentas, obtenerVentaCompleta, VentaCompleta, VentaResumen } from "@/database/ventaService";
+import { BottomTabInset, Spacing } from "@/constants/theme";
+import { calcularRango, exportarCsvVentas, listarVentas, obtenerReporteVentas, obtenerVentaCompleta, RangoFecha, ReporteVentas, VentaCompleta, VentaResumen } from "@/database/ventaService";
 import { useTheme } from "@/hooks/use-theme";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "expo-router";
 import { useCallback, useState } from "react";
-import { FlatList, StyleSheet, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, FlatList, StyleSheet, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function VentasScreen() {
@@ -15,16 +16,36 @@ export default function VentasScreen() {
   const [modalVisible, setModalVisible] = useState(false);
   const [ventas, setVentas] = useState<VentaResumen[]>([]);
   const [ticket, setTicket] = useState<VentaCompleta | null>(null);
+  const [rango, setRango] = useState<RangoFecha>("hoy");
+  const [exportando, setExportando] = useState(false);
+  const [reporte, setReporte] = useState<ReporteVentas>({ totalVendido: 0, totalGanancia: 0, totalVentas: 0, totalUnidades: 0 });
 
-  const cargarVentas = useCallback(() => {
-    setVentas(listarVentas(100));
+  const cargarVentas = useCallback((rangoActual: RangoFecha) => {
+    const { desde, hasta } = calcularRango(rangoActual);
+    setVentas(listarVentas(500, desde, hasta));
+    setReporte(obtenerReporteVentas(desde, hasta));
   }, []);
 
   useFocusEffect(
     useCallback(() => {
-      cargarVentas();
-    }, [cargarVentas]),
+      cargarVentas(rango);
+    }, [cargarVentas, rango]),
   );
+
+  const cambiarRango = (nuevo: RangoFecha) => {
+    setRango(nuevo);
+    cargarVentas(nuevo);
+  };
+
+  const compartirReporte = async () => {
+    try {
+      setExportando(true);
+      const { desde, hasta } = calcularRango(rango);
+      await exportarCsvVentas(desde, hasta, rango);
+    } finally {
+      setExportando(false);
+    }
+  };
 
   const abrirTicket = (ventaId: string) => {
     setTicket(obtenerVentaCompleta(ventaId));
@@ -33,16 +54,18 @@ export default function VentasScreen() {
   return (
     <SafeAreaView style={[styles.screen, { backgroundColor: theme.background }]} edges={["top", "left", "right"]}>
       <View style={styles.header}>
-        <View>
-          <ThemedText type="title">Ventas</ThemedText>
-          <ThemedText type="small" style={{ color: theme.textSecondary }}>
-            {ventas.length} {ventas.length === 1 ? "venta registrada" : "ventas registradas"}
-          </ThemedText>
-        </View>
-        <TouchableOpacity style={[styles.btnNuevaVenta, { backgroundColor: theme.success ?? "#30A46C" }]} onPress={() => setModalVisible(true)} activeOpacity={0.85}>
-          <Ionicons name="add-circle-outline" size={20} color="#FFF" />
-          <ThemedText type="smallBold" style={{ color: "#FFF", marginLeft: 6 }}>
-            Nueva venta
+        <ThemedText type="subtitle">Ventas</ThemedText>
+      </View>
+
+      <View style={styles.reportesWrapper}>
+        <ResumenVentas totalVendido={reporte.totalVendido} totalGanancia={reporte.totalGanancia} totalVentas={reporte.totalVentas} totalUnidades={reporte.totalUnidades} />
+
+        <FiltrosFecha rangoActual={rango} onCambiar={cambiarRango} />
+
+        <TouchableOpacity style={[styles.btnExportar, { borderColor: theme.border, opacity: ventas.length === 0 || exportando ? 0.5 : 1 }]} onPress={compartirReporte} disabled={ventas.length === 0 || exportando} activeOpacity={0.8}>
+          {exportando ? <ActivityIndicator size="small" color={theme.primary} /> : <Ionicons name="download-outline" size={18} color={theme.primary} />}
+          <ThemedText type="smallBold" style={{ color: theme.primary, marginLeft: 6 }}>
+            {exportando ? "Exportando..." : "Exportar reporte (CSV)"}
           </ThemedText>
         </TouchableOpacity>
       </View>
@@ -78,7 +101,15 @@ export default function VentasScreen() {
         )}
       />
 
-      <ModalVentas key={modalVisible ? "abierto" : "cerrado"} visible={modalVisible} onClose={() => setModalVisible(false)} onSuccess={cargarVentas} />
+      {/* Botón flotante: Nueva venta (cómodo para el pulgar) */}
+      <TouchableOpacity style={[styles.fab, { backgroundColor: theme.success ?? "#30A46C" }]} onPress={() => setModalVisible(true)} activeOpacity={0.85} accessibilityRole="button" accessibilityLabel="Nueva venta">
+        <Ionicons name="add" size={22} color="#FFF" />
+        <ThemedText type="smallBold" style={{ color: "#FFF", marginLeft: 6 }}>
+          Nueva venta
+        </ThemedText>
+      </TouchableOpacity>
+
+      <ModalVentas key={modalVisible ? "abierto" : "cerrado"} visible={modalVisible} onClose={() => setModalVisible(false)} onSuccess={() => cargarVentas(rango)} />
       <TicketVenta visible={ticket !== null} venta={ticket} onClose={() => setTicket(null)} />
     </SafeAreaView>
   );
@@ -89,18 +120,40 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    gap: Spacing.three,
+    justifyContent: "center",
+    gap: Spacing.two,
     paddingHorizontal: Spacing.three,
     paddingTop: Spacing.three,
-    paddingBottom: Spacing.two,
+    paddingBottom: Spacing.three,
+  },
+  headerBadge: {
+    minWidth: 28,
+    height: 28,
+    paddingHorizontal: 8,
+    borderRadius: 14,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
   },
   list: {
+    paddingHorizontal: Spacing.three,
+    paddingBottom: BottomTabInset + 72,
+    gap: Spacing.two,
+  },
+  reportesWrapper: {
     paddingHorizontal: Spacing.three,
     paddingBottom: Spacing.three,
     gap: Spacing.two,
   },
-  emptyList: { flexGrow: 1, paddingHorizontal: Spacing.three },
+  btnExportar: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    height: 42,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  emptyList: { flexGrow: 1, paddingHorizontal: Spacing.three, paddingBottom: BottomTabInset + 72 },
   empty: {
     flex: 1,
     alignItems: "center",
@@ -108,13 +161,20 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.three,
     gap: 12,
   },
-  btnNuevaVenta: {
+  fab: {
+    position: "absolute",
+    right: Spacing.four,
+    bottom: BottomTabInset + Spacing.two,
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 10,
-    marginTop: 8,
+    height: 52,
+    borderRadius: 26,
+    shadowColor: "#000",
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 6,
   },
   ventaRow: {
     minHeight: 68,
