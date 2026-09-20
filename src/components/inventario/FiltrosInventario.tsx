@@ -1,4 +1,5 @@
 import { ThemedText } from "@/components/themed-text";
+import { Spacing } from "@/constants/theme";
 import { useTheme } from "@/hooks/use-theme";
 import { StyleSheet, TouchableOpacity, View } from "react-native";
 
@@ -14,50 +15,58 @@ export interface Contadores {
 interface Props {
   filtroActual: FiltroStock;
   onCambiar: (filtro: FiltroStock) => void;
+  contadores?: Contadores; // 👈 opcional: badges con conteo
 }
 
-export function FiltrosInventario({ filtroActual, onCambiar }: Props) {
-  const theme = useTheme();
+const OPCIONES: { key: FiltroStock; label: string }[] = [
+  { key: "todos", label: "Todos" },
+  { key: "bajo", label: "Bajo stock" },
+  { key: "agotado", label: "Agotados" },
+  { key: "inactivos", label: "Inactivos" },
+];
 
-  const renderChip = (key: FiltroStock, label: string) => {
-    const activo = filtroActual === key;
-    return (
-      <TouchableOpacity
-        key={key}
-        style={[
-          styles.chip,
-          {
-            borderColor: activo ? theme.primary : theme.border,
-            backgroundColor: activo ? theme.primary : "transparent",
-          },
-        ]}
-        onPress={() => onCambiar(key)}
-        activeOpacity={0.8}
-        accessibilityRole="button"
-        accessibilityLabel={`Filtrar por ${label}`}
-        accessibilityState={{ selected: activo }}
-      >
-        <ThemedText
-          type="small"
-          numberOfLines={1}
-          style={{
-            color: activo ? "#FFF" : theme.textSecondary,
-            fontWeight: activo ? "700" : "500",
-            fontSize: 12,
-          }}
-        >
-          {label}
-        </ThemedText>
-      </TouchableOpacity>
-    );
-  };
+export function FiltrosInventario({ filtroActual, onCambiar, contadores }: Props) {
+  const theme = useTheme();
 
   return (
     <View style={styles.filterContainer}>
-      {renderChip("todos", "Todos")}
-      {renderChip("bajo", "Bajo")}
-      {renderChip("agotado", "Agotado")}
-      {renderChip("inactivos", "Inactivos")}
+      {OPCIONES.map((opcion) => {
+        const activo = filtroActual === opcion.key;
+        const conteo = contadores?.[opcion.key];
+
+        return (
+          <TouchableOpacity
+            key={opcion.key}
+            style={[
+              styles.chip,
+              {
+                borderColor: activo ? theme.primary : theme.border,
+                backgroundColor: activo ? theme.primary : "transparent",
+              },
+            ]}
+            onPress={() => onCambiar(opcion.key)}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel={`Filtrar por ${opcion.label}`}
+            accessibilityState={{ selected: activo }}
+          >
+            <ThemedText
+              type="small"
+              numberOfLines={1}
+              style={[
+                styles.chipLabel,
+                {
+                  color: activo ? "#FFFFFF" : theme.textSecondary,
+                  fontWeight: activo ? "700" : "500",
+                },
+              ]}
+            >
+              {opcion.label}
+              {conteo !== undefined ? ` (${conteo})` : ""}
+            </ThemedText>
+          </TouchableOpacity>
+        );
+      })}
     </View>
   );
 }
@@ -65,16 +74,20 @@ export function FiltrosInventario({ filtroActual, onCambiar }: Props) {
 const styles = StyleSheet.create({
   filterContainer: {
     flexDirection: "row",
-    gap: 8,
-    marginBottom: 12,
+    gap: Spacing.two,
+    marginBottom: Spacing.three,
   },
   chip: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
     paddingVertical: 10,
-    paddingHorizontal: 8,
+    paddingHorizontal: Spacing.two,
     borderRadius: 12,
     borderWidth: 1,
+  },
+  chipLabel: {
+    fontSize: 11,
+    letterSpacing: 0.2,
   },
 });

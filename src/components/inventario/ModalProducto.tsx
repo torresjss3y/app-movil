@@ -1,17 +1,11 @@
 import { ThemedText } from "@/components/themed-text";
 import { Spacing } from "@/constants/theme";
-import {
-  actualizarProducto,
-  AtributoProductoInput,
-  crearProducto,
-  obtenerProductoPorCodigo,
-  ProductoDB,
-  registrarMovimiento,
-} from "@/database/productosService";
+import { actualizarProducto, AtributoProductoInput, crearProducto, obtenerProductoPorCodigo, ProductoDB, registrarMovimiento } from "@/database/productosService";
 import { useTheme } from "@/hooks/use-theme";
 import { Ionicons } from "@expo/vector-icons";
 import { useEffect, useState } from "react";
-import { Alert, Dimensions, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from "react-native";
+import { Dimensions, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from "react-native";
+import Dialog from "react-native-dialog";
 import { FormularioProducto } from "./FormularioProducto";
 import { ScannerCamara } from "./ScannerCamara";
 
@@ -22,13 +16,38 @@ interface Props {
   productoEditar?: ProductoDB | null;
 }
 
-const { height: SCREEN_HEIGHT } = Dimensions.get("window");
+type DialogType = "info" | "error" | "success" | "warning";
 
+interface DialogState {
+  visible: boolean;
+  title: string;
+  message: string;
+  type: DialogType;
+  onAccept?: () => void;
+}
+
+const { height: SCREEN_HEIGHT } = Dimensions.get("window");
+const getDialogColor = (type: DialogType, theme: any) => {
+  switch (type) {
+    case "error":
+      return theme.danger;
+    case "success":
+      return theme.success ?? "#30A46C";
+    case "warning":
+      return theme.warning ?? "#F5A623";
+    case "info":
+    default:
+      return theme.primary ?? "#3B82F6";
+  }
+};
+
+/* ModalProducto                                                       */
 export default function ModalProducto({ visible, onClose, onSuccess, productoEditar }: Props) {
   const theme = useTheme();
 
   const [nombre, setNombre] = useState(productoEditar?.nombre || "");
   const [marca, setMarca] = useState(productoEditar?.marca || "");
+  const [categoria, setCategoria] = useState(productoEditar?.categoria || "");
   const [atributos, setAtributos] = useState<AtributoProductoInput[]>(productoEditar?.atributos ?? []);
   const [precioCompra, setPrecioCompra] = useState(productoEditar?.precio_compra ? String(productoEditar.precio_compra) : "");
   const [precioVenta, setPrecioVenta] = useState(productoEditar?.precio_venta ? String(productoEditar.precio_venta) : "");
@@ -38,8 +57,26 @@ export default function ModalProducto({ visible, onClose, onSuccess, productoEdi
   const [escaneando, setEscaneando] = useState(false);
   const [codigoConfirmado, setCodigoConfirmado] = useState(!!productoEditar);
 
-  // 👇 Producto detectado al escanear (para modo "registrar ingreso")
+  // Producto detectado al escanear (para modo "registrar ingreso")
   const [productoExistente, setProductoExistente] = useState<ProductoDB | null>(null);
+
+  // Estado del diálogo
+  const [dialog, setDialog] = useState<DialogState>({
+    visible: false,
+    title: "",
+    message: "",
+    type: "info",
+  });
+
+  const showDialog = (title: string, message: string, type: DialogType = "info", onAccept?: () => void) => {
+    setDialog({ visible: true, title, message, type, onAccept });
+  };
+
+  const closeDialog = () => {
+    const cb = dialog.onAccept;
+    setDialog((d) => ({ ...d, visible: false }));
+    cb?.();
+  };
 
   const esEdicion = !!productoEditar;
   const esIngreso = !esEdicion && !!productoExistente;
@@ -62,10 +99,11 @@ export default function ModalProducto({ visible, onClose, onSuccess, productoEdi
       setProductoExistente(p);
       setNombre(p.nombre || "");
       setMarca(p.marca || "");
+      setCategoria(p.categoria || ""); // 👈 NUEVO
       setAtributos(p.atributos);
       setPrecioCompra(p.precio_compra ? String(p.precio_compra) : "");
       setPrecioVenta(p.precio_venta ? String(p.precio_venta) : "");
-      setStock(""); // 🔑 vacío → usuario ingresa la cantidad nueva
+      setStock(""); // vacío → usuario ingresa la cantidad nueva
     } else {
       setProductoExistente(null);
     }
@@ -87,6 +125,7 @@ export default function ModalProducto({ visible, onClose, onSuccess, productoEdi
   const limpiar = () => {
     setNombre("");
     setMarca("");
+    setCategoria(""); // 👈 NUEVO
     setAtributos([]);
     setPrecioCompra("");
     setPrecioVenta("");
@@ -103,21 +142,19 @@ export default function ModalProducto({ visible, onClose, onSuccess, productoEdi
     const stockNumero = Number.parseInt(stock, 10);
 
     if (!Number.isFinite(precioVentaNumero) || precioVentaNumero < 0) {
-      Alert.alert("Precio inválido", "Ingresa un precio de venta válido.");
+      showDialog("Precio inválido", "Ingresa un precio de venta válido.", "error");
       return;
     }
 
     if (!Number.isFinite(precioCompraNumero) || precioCompraNumero < 0) {
-      Alert.alert("Precio inválido", "Ingresa un precio de compra válido.");
+      showDialog("Precio inválido", "Ingresa un precio de compra válido.", "error");
       return;
     }
 
-    // ============================================================
     // CASO 1: EDITAR producto existente
-    // ============================================================
     if (productoEditar) {
       if (!nombre.trim() || !precioVenta) {
-        Alert.alert("Campos requeridos", "Completa el nombre y precio de venta.");
+        showDialog("Campos requeridos", "Completa el nombre y precio de venta.", "warning");
         return;
       }
 
@@ -126,30 +163,30 @@ export default function ModalProducto({ visible, onClose, onSuccess, productoEdi
         codigo_barras: codigoBarras.trim() || null,
         nombre: nombre.trim(),
         marca: marca.trim() || null,
+        categoria: categoria.trim() || null, // 👈 NUEVO
         atributos,
         precio_compra: precioCompraNumero,
         precio_venta: precioVentaNumero,
       });
 
       if (exito) {
-        Alert.alert("Éxito", "Producto actualizado correctamente.");
-        limpiar();
-        onClose();
-        onSuccess?.();
+        showDialog("Éxito", "Producto actualizado correctamente.", "success", () => {
+          limpiar();
+          onClose();
+          onSuccess?.();
+        });
       } else {
-        Alert.alert("Error", "No se pudo actualizar el producto.");
+        showDialog("Error", "No se pudo actualizar el producto.", "error");
       }
       return;
     }
 
-    // ============================================================
     // CASO 2: REGISTRAR INGRESO a un producto existente
-    // ============================================================
     if (productoExistente) {
       const cantidad = parseInt(stock, 10) || 0;
 
       if (cantidad <= 0) {
-        Alert.alert("Cantidad inválida", "Ingresa una cantidad mayor a 0 para registrar el ingreso.");
+        showDialog("Cantidad inválida", "Ingresa una cantidad mayor a 0 para registrar el ingreso.", "error");
         return;
       }
 
@@ -162,39 +199,39 @@ export default function ModalProducto({ visible, onClose, onSuccess, productoEdi
       });
 
       if (exito) {
-        Alert.alert("Éxito", `Se registraron ${cantidad} unidades al producto "${productoExistente.nombre}".`);
-        limpiar();
-        onClose();
-        onSuccess?.();
+        showDialog("Éxito", `Se registraron ${cantidad} unidades al producto "${productoExistente.nombre}".`, "success", () => {
+          limpiar();
+          onClose();
+          onSuccess?.();
+        });
       } else {
-        Alert.alert("Error", "No se pudo registrar el movimiento.");
+        showDialog("Error", "No se pudo registrar el movimiento.", "error");
       }
       return;
     }
 
-    // ============================================================
     // CASO 3: CREAR producto nuevo
-    // ============================================================
     if (!nombre.trim() || !precioVenta) {
-      Alert.alert("Campos requeridos", "Completa el nombre y precio de venta.");
+      showDialog("Campos requeridos", "Completa el nombre y precio de venta.", "warning");
       return;
     }
 
     if (!stock) {
-      Alert.alert("Campos requeridos", "Ingresa un stock inicial.");
+      showDialog("Campos requeridos", "Ingresa un stock inicial.", "warning");
       return;
     }
 
     if (!Number.isFinite(stockNumero) || stockNumero < 0) {
-      Alert.alert("Stock inválido", "Ingresa una cantidad entera válida.");
+      showDialog("Stock inválido", "Ingresa una cantidad entera válida.", "error");
       return;
     }
 
     const exito = crearProducto({
-      id: Date.now().toString(),
+      id: String(Date.now()),
       codigo_barras: codigoBarras.trim() || null,
       nombre: nombre.trim(),
       marca: marca.trim() || null,
+      categoria: categoria.trim() || null, // 👈 NUEVO
       atributos,
       precio_compra: precioCompraNumero,
       precio_venta: precioVentaNumero,
@@ -202,12 +239,13 @@ export default function ModalProducto({ visible, onClose, onSuccess, productoEdi
     });
 
     if (exito) {
-      Alert.alert("Éxito", "Producto registrado exitosamente.");
-      limpiar();
-      onClose();
-      onSuccess?.();
+      showDialog("Éxito", "Producto registrado exitosamente.", "success", () => {
+        limpiar();
+        onClose();
+        onSuccess?.();
+      });
     } else {
-      Alert.alert("Error", "No se pudo guardar el producto.");
+      showDialog("Error", "No se pudo guardar el producto.", "error");
     }
   };
 
@@ -217,12 +255,14 @@ export default function ModalProducto({ visible, onClose, onSuccess, productoEdi
   };
 
   // Título dinámico
-  const titulo = esEdicion ? "Editar Zapatilla" : esIngreso ? "Registrar Ingreso" : "Nueva Zapatilla";
+  const titulo = esEdicion ? "Editar " : esIngreso ? "Registrar Ingreso" : "Nuevo ";
 
   // Texto del botón
   const textoBoton = esEdicion ? "Actualizar" : esIngreso ? "Registrar Ingreso" : "Guardar";
 
   if (!visible) return null;
+
+  const dialogColor = getDialogColor(dialog.type, theme);
 
   return (
     <View style={styles.backdrop}>
@@ -233,7 +273,6 @@ export default function ModalProducto({ visible, onClose, onSuccess, productoEdi
           </ThemedText>
 
           <ScannerCamara visible={!esEdicion && !codigoConfirmado} escaneando={escaneando} onCodigoDetectado={handleCodigoDetectado} />
-
           {/* Aviso: producto ya registrado → se registrará ingreso */}
           {esIngreso && (
             <View
@@ -285,17 +324,14 @@ export default function ModalProducto({ visible, onClose, onSuccess, productoEdi
             </View>
           )}
 
-          <ScrollView
-            showsVerticalScrollIndicator={false}
-            style={styles.scroll}
-            contentContainerStyle={styles.scrollContent}
-            keyboardShouldPersistTaps="handled"
-          >
+          <ScrollView showsVerticalScrollIndicator={false} style={styles.scroll} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
             <FormularioProducto
               nombre={nombre}
               setNombre={setNombre}
               marca={marca}
               setMarca={setMarca}
+              categoria={categoria} // 👈 NUEVO
+              setCategoria={setCategoria} // 👈 NUEVO
               atributos={atributos}
               setAtributos={setAtributos}
               stock={stock}
@@ -324,10 +360,24 @@ export default function ModalProducto({ visible, onClose, onSuccess, productoEdi
           </View>
         </View>
       </KeyboardAvoidingView>
+      {/* --- Diálogo: Reemplazo de Alert.alert (mismo formato que ItemProducto) --- */}
+      <Dialog.Container
+        visible={dialog.visible}
+        onBackdropPress={closeDialog}
+        contentStyle={{
+          backgroundColor: theme.card,
+          borderRadius: 16,
+        }}
+      >
+        <Dialog.Title style={{ color: theme.text }}>{dialog.title}</Dialog.Title>
+        <Dialog.Description style={{ color: theme.textSecondary }}>{dialog.message}</Dialog.Description>
+        <Dialog.Button label="Aceptar" color={dialogColor} onPress={closeDialog} />
+      </Dialog.Container>
     </View>
   );
 }
 
+/* Styles                                                              */
 const styles = StyleSheet.create({
   backdrop: {
     position: "absolute",

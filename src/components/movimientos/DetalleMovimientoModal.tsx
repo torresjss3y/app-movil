@@ -1,20 +1,11 @@
-import {
-  Modal,
-  ScrollView,
-  StyleSheet,
-  TouchableOpacity,
-  View,
-} from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { useMemo } from "react";
+import { Modal, ScrollView, StyleSheet, TouchableOpacity, View } from "react-native";
 
 import { ThemedText } from "@/components/themed-text";
 import { Colors, Spacing } from "@/constants/theme";
-import {
-  ItemLoteUI,
-  LoteUI,
-  obtenerItemsDeLote,
-} from "@/database/productosService";
+import { ItemLoteUI, LoteUI, obtenerItemsDeLote } from "@/database/productosService";
 import { useTheme } from "@/hooks/use-theme";
-import { useMemo } from "react";
 
 interface Props {
   visible: boolean;
@@ -22,219 +13,311 @@ interface Props {
   onClose: () => void;
 }
 
+// --- Configuración por tipo de movimiento -----------------------------------
+
+const CONFIG_TIPO: Record<
+  string,
+  {
+    icono: keyof typeof Ionicons.glyphMap;
+    etiqueta: string;
+    descripcion: string;
+    colorKey: "success" | "danger" | "warning";
+  }
+> = {
+  entrada: {
+    icono: "arrow-up",
+    etiqueta: "Entrada",
+    descripcion: "Ingreso de mercadería",
+    colorKey: "success",
+  },
+  salida: {
+    icono: "arrow-down",
+    etiqueta: "Salida",
+    descripcion: "Retiro de mercadería",
+    colorKey: "danger",
+  },
+  ajuste: {
+    icono: "swap-vertical",
+    etiqueta: "Ajuste",
+    descripcion: "Corrección de inventario",
+    colorKey: "warning",
+  },
+};
+
+const MOTIVO_LABEL: Record<string, string> = {
+  stock_inicial: "Stock inicial",
+  compra: "Compra",
+  venta: "Venta",
+  devolucion: "Devolución",
+  merma: "Merma",
+  uso_interno: "Uso interno",
+  ajuste: "Ajuste",
+  otro: "Otro",
+};
+
+const MESES = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
+
+const formatearFecha = (fecha: string): string => {
+  try {
+    const [f, h = "00:00:00"] = fecha.split(" ");
+    const [y, m, d] = f.split("-");
+    const [hh, mm] = h.split(":");
+    if (!y || !m || !d) return fecha;
+    const mesNombre = MESES[parseInt(m, 10) - 1];
+    return `${parseInt(d, 10)} ${mesNombre} ${y} · ${hh}:${mm}`;
+  } catch {
+    return fecha;
+  }
+};
+
+// --- Componente --------------------------------------------------------------
+
 export function DetalleMovimientoModal({ visible, lote, onClose }: Props) {
   const theme = useTheme() as typeof Colors.light;
 
-  // ✅ Calcular los items DURANTE el render, no en un useEffect.
-  // useMemo los recalcula solo cuando cambia el lote.
+  const loteId = lote?.id;
+
   const items: ItemLoteUI[] = useMemo(() => {
-    if (!lote) return [];
-    return obtenerItemsDeLote(lote.id);
-  }, [lote]);
+    if (!loteId) return [];
+    return obtenerItemsDeLote(loteId);
+  }, [loteId]);
 
   if (!lote) return null;
 
-  const colorTipo =
-    lote.tipo === "entrada"
-      ? theme.success
-      : lote.tipo === "salida"
-        ? theme.danger
-        : theme.warning;
+  const config = CONFIG_TIPO[lote.tipo] ?? CONFIG_TIPO.ajuste;
+  const colorTipo = theme[config.colorKey];
+  const colorFondo = theme[`${config.colorKey}Background` as const] ?? theme.card;
 
-  const signo =
-    lote.tipo === "entrada" ? "+" : lote.tipo === "salida" ? "-" : "";
+  const signo = lote.tipo === "entrada" ? "+" : lote.tipo === "salida" ? "-" : "";
 
-  const emoji =
-    lote.tipo === "entrada" ? "➕" : lote.tipo === "salida" ? "➖" : "⚖️";
+  const motivoTexto = MOTIVO_LABEL[lote.motivo] ?? lote.motivo.replace(/_/g, " ");
+
+  const etiquetaTotal = lote.tipo === "entrada" ? "Total ingresado" : lote.tipo === "salida" ? "Total retirado" : "Total ajustado";
 
   return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="fade"
-      onRequestClose={onClose}
-    >
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={styles.overlay}>
-        <View
-          style={[
-            styles.modalContent,
-            { backgroundColor: theme.background, borderColor: theme.border },
-          ]}
-        >
-          {/* Cabecera */}
-          <View
-            style={[styles.modalHeader, { borderBottomColor: theme.border }]}
-          >
-            <View style={{ flex: 1 }}>
-              <View style={styles.titleRow}>
-                <ThemedText style={{ fontSize: 16 }}>{emoji}</ThemedText>
-                <ThemedText type="smallBold" style={styles.titulo}>
-                  {lote.motivo.replace("_", " ").toUpperCase()}
-                </ThemedText>
-              </View>
-              <ThemedText type="small" style={styles.subtitulo}>
-                {lote.fecha}
+        <View style={[styles.modalContent, { backgroundColor: theme.card }]}>
+          {/* ── Cabecera ────────────────────────────────────── */}
+          <View style={styles.header}>
+            <View style={[styles.iconCircle, { backgroundColor: colorFondo }]}>
+              <Ionicons name={config.icono} size={20} color={colorTipo} />
+            </View>
+
+            <View style={styles.headerText}>
+              <ThemedText type="smallBold" style={styles.titulo}>
+                {motivoTexto}
+              </ThemedText>
+              <ThemedText type="small" style={[styles.headerSub, { color: theme.textSecondary }]}>
+                {config.descripcion}
+              </ThemedText>
+              <ThemedText type="small" style={[styles.headerFecha, { color: theme.textTertiary }]}>
+                {formatearFecha(lote.fecha)}
               </ThemedText>
             </View>
-            <TouchableOpacity onPress={onClose} hitSlop={12}>
-              <ThemedText type="small" style={{ opacity: 0.6, fontSize: 16 }}>
-                ✕
-              </ThemedText>
+
+            <TouchableOpacity onPress={onClose} hitSlop={12} accessibilityRole="button" accessibilityLabel="Cerrar detalle del movimiento">
+              <Ionicons name="close" size={20} color={theme.textSecondary} />
             </TouchableOpacity>
           </View>
 
-          {/* Nota */}
-          {lote.nota ? (
-            <View
-              style={[
-                styles.notaBox,
-                { backgroundColor: theme.input, borderColor: theme.border },
-              ]}
-            >
-              <ThemedText type="small" style={styles.notaText}>
-                📝 {lote.nota}
-              </ThemedText>
-            </View>
-          ) : null}
+          {/* ── Divisor ─────────────────────────────────────── */}
+          <View style={[styles.divider, { backgroundColor: theme.divider }]} />
 
-          {/* Lista de productos del lote */}
-          <ScrollView
-            style={styles.scroll}
-            contentContainerStyle={styles.scrollContent}
-            showsVerticalScrollIndicator
-            nestedScrollEnabled
-          >
-            <ThemedText type="small" style={styles.sectionLabel}>
-              PRODUCTOS ({items.length})
+          {/* ── Sección: Productos ─────────────────────────── */}
+          <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false} nestedScrollEnabled>
+            <ThemedText type="small" style={[styles.sectionLabel, { color: theme.textTertiary }]}>
+              PRODUCTOS · {items.length}
             </ThemedText>
 
-            {items.map((item) => (
-              <View
-                key={item.id}
-                style={[
-                  styles.productoRow,
-                  { borderBottomColor: theme.border },
-                ]}
-              >
-                <View style={{ flex: 1, paddingRight: 8 }}>
-                  <ThemedText type="smallBold" numberOfLines={1}>
-                    {item.producto_nombre}
-                  </ThemedText>
-                </View>
-                <ThemedText
-                  type="smallBold"
-                  style={[styles.cantidad, { color: colorTipo }]}
-                >
-                  {signo}
-                  {item.cantidad}
-                </ThemedText>
-              </View>
-            ))}
+            {items.length === 0 ? (
+              <ThemedText type="small" style={[styles.emptyText, { color: theme.textSecondary }]}>
+                Sin productos en este lote.
+              </ThemedText>
+            ) : (
+              items.map((item, index) => {
+                const secundarios = [item.producto_marca, item.producto_categoria].filter(Boolean);
+                const subtexto = secundarios.length > 0 ? secundarios.join(" · ") : "Sin marca";
+
+                return (
+                  <View key={item.id}>
+                    <View style={styles.productoRow}>
+                      <View style={styles.productoInfo}>
+                        <ThemedText type="smallBold" numberOfLines={1}>
+                          {item.producto_nombre}
+                        </ThemedText>
+                        <ThemedText type="small" numberOfLines={1} style={[styles.productoSub, { color: theme.textSecondary }]}>
+                          {subtexto}
+                        </ThemedText>
+                      </View>
+                      <ThemedText type="smallBold" style={[styles.cantidad, { color: colorTipo }]}>
+                        {signo}
+                        {item.cantidad}
+                      </ThemedText>
+                    </View>
+
+                    {/* Separador entre items, pero no después del último */}
+                    {index < items.length - 1 && <View style={[styles.itemDivider, { backgroundColor: theme.divider }]} />}
+                  </View>
+                );
+              })
+            )}
           </ScrollView>
 
-          {/* Footer con total */}
-          <View style={[styles.totalRow, { borderTopColor: theme.border }]}>
-            <ThemedText type="small" style={{ color: theme.textSecondary }}>
-              Total: {lote.total_productos} producto
-              {lote.total_productos !== 1 ? "s" : ""}
-            </ThemedText>
-            <ThemedText
-              type="smallBold"
-              style={{ color: colorTipo, fontSize: 16 }}
-            >
-              {signo}
-              {lote.total_unidades} u.
-            </ThemedText>
-          </View>
+          {/* ── Divisor ─────────────────────────────────────── */}
+          <View style={[styles.divider, { backgroundColor: theme.divider }]} />
 
-          {/* Botón Cerrar */}
-          <TouchableOpacity
-            style={[styles.btnCerrar, { backgroundColor: theme.card }]}
-            onPress={onClose}
-          >
-            <ThemedText type="smallBold" style={styles.btnCerrarText}>
-              Cerrar
+          {/* ── Total ──────────────────────────────────────── */}
+          <View style={styles.totalRow}>
+            <ThemedText type="small" style={[styles.totalLabel, { color: theme.textSecondary }]}>
+              {etiquetaTotal}
             </ThemedText>
-          </TouchableOpacity>
+
+            <View style={styles.totalRight}>
+              <ThemedText type="smallBold" style={[styles.totalCantidad, { color: colorTipo }]}>
+                {signo}
+                {lote.total_unidades}
+              </ThemedText>
+              <ThemedText type="small" style={[styles.totalUnidad, { color: theme.textSecondary }]}>
+                unidades
+              </ThemedText>
+            </View>
+          </View>
         </View>
       </View>
     </Modal>
   );
 }
 
+// --- Estilos -----------------------------------------------------------------
+
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.65)",
+    backgroundColor: "rgba(0, 0, 0, 0.55)",
     justifyContent: "center",
     alignItems: "center",
     padding: Spacing.four,
   },
   modalContent: {
     width: "100%",
-    maxWidth: 400,
+    maxWidth: 420,
     maxHeight: "85%",
-    borderRadius: 16,
-    borderWidth: 1,
-    padding: Spacing.three,
+    borderRadius: 20,
+    paddingVertical: Spacing.four,
+    paddingHorizontal: Spacing.four,
+    gap: Spacing.three,
   },
-  modalHeader: {
+
+  // Cabecera
+  header: {
     flexDirection: "row",
     alignItems: "flex-start",
-    paddingBottom: Spacing.two,
-    borderBottomWidth: 1,
+    gap: Spacing.three,
   },
-  titleRow: {
-    flexDirection: "row",
+  iconCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: "center",
-    gap: 6,
+    justifyContent: "center",
   },
-  titulo: { fontSize: 15 },
-  subtitulo: { opacity: 0.6, fontSize: 11, marginTop: 2 },
-  notaBox: {
-    marginTop: Spacing.two,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    borderRadius: 8,
-    borderWidth: 1,
+  headerText: {
+    flex: 1,
+    minWidth: 0,
+    gap: 2,
   },
-  notaText: { opacity: 0.85, fontSize: 12, fontStyle: "italic" },
+  titulo: {
+    fontSize: 17,
+  },
+  headerSub: {
+    fontSize: 12,
+  },
+  headerFecha: {
+    fontSize: 11,
+    marginTop: 2,
+  },
+
+  // Divisor
+  divider: {
+    height: StyleSheet.hairlineWidth,
+    width: "100%",
+  },
+
+  // Meta
+  metaLine: {
+    fontSize: 12,
+    fontStyle: "italic",
+    marginTop: -Spacing.one,
+  },
+
+  // Sección de productos
   scroll: {
-    marginTop: Spacing.two,
-    maxHeight: 320,
+    maxHeight: 340,
+    marginTop: -Spacing.one,
   },
   scrollContent: {
-    paddingBottom: 4,
+    paddingBottom: 2,
   },
   sectionLabel: {
     fontSize: 10,
     fontWeight: "700",
-    letterSpacing: 1,
-    opacity: 0.55,
-    marginBottom: 6,
+    letterSpacing: 1.2,
+    marginBottom: Spacing.two,
+  },
+  emptyText: {
+    textAlign: "center",
+    paddingVertical: Spacing.four,
+    opacity: 0.7,
   },
   productoRow: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-start",
     justifyContent: "space-between",
-    paddingVertical: 10,
-    borderBottomWidth: StyleSheet.hairlineWidth,
+    paddingVertical: Spacing.two,
+    gap: Spacing.two,
   },
-  cantidad: { fontSize: 15 },
+  productoInfo: {
+    flex: 1,
+    minWidth: 0,
+  },
+  productoSub: {
+    fontSize: 11,
+    marginTop: 1,
+  },
+  cantidad: {
+    fontSize: 15,
+    letterSpacing: 0.2,
+    paddingTop: 1,
+  },
+  itemDivider: {
+    height: StyleSheet.hairlineWidth,
+  },
+
+  // Total
   totalRow: {
     flexDirection: "row",
+    alignItems: "flex-start",
     justifyContent: "space-between",
-    alignItems: "center",
-    paddingTop: Spacing.two,
-    marginTop: Spacing.two,
-    borderTopWidth: 1,
   },
-  btnCerrar: {
-    marginTop: Spacing.two,
-    paddingVertical: Spacing.two,
-    borderRadius: 10,
-    alignItems: "center",
-    justifyContent: "center",
+  totalLabel: {
+    fontSize: 12,
+    paddingTop: 4,
   },
-  btnCerrarText: { fontSize: 13 },
+  totalRight: {
+    alignItems: "flex-end",
+  },
+  totalCantidad: {
+    fontSize: 26,
+    letterSpacing: -0.5,
+    lineHeight: 30,
+  },
+  totalUnidad: {
+    fontSize: 11,
+    marginTop: -2,
+  },
+  totalProductos: {
+    fontSize: 11,
+    marginTop: -Spacing.two,
+  },
 });

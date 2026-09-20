@@ -4,7 +4,7 @@ import { Tabs } from "expo-router";
 import { Colors } from "@/constants/theme";
 import { useThemeMode } from "@/contexts/theme-context";
 
-export default function AppTabs() {
+export function AppTabs() {
   const { resolvedTheme } = useThemeMode();
   const colors = Colors[resolvedTheme];
 
@@ -26,13 +26,7 @@ export default function AppTabs() {
         name="movimientos"
         options={{
           title: "Movimientos",
-          tabBarIcon: ({ color, focused }) => (
-            <Ionicons
-              name={focused ? "swap-horizontal" : "swap-horizontal-outline"}
-              size={24}
-              color={color}
-            />
-          ),
+          tabBarIcon: ({ color, focused }) => <Ionicons name={focused ? "swap-horizontal" : "swap-horizontal-outline"} size={24} color={color} />,
         }}
       />
 
@@ -40,26 +34,14 @@ export default function AppTabs() {
         name="inventario"
         options={{
           title: "Inventario",
-          tabBarIcon: ({ color, focused }) => (
-            <Ionicons
-              name={focused ? "cube" : "cube-outline"}
-              size={24}
-              color={color}
-            />
-          ),
+          tabBarIcon: ({ color, focused }) => <Ionicons name={focused ? "cube" : "cube-outline"} size={24} color={color} />,
         }}
       />
       <Tabs.Screen
         name="ventas"
         options={{
           title: "Ventas",
-          tabBarIcon: ({ color, focused }) => (
-            <Ionicons
-              name={focused ? "receipt" : "receipt-outline"}
-              size={24}
-              color={color}
-            />
-          ),
+          tabBarIcon: ({ color, focused }) => <Ionicons name={focused ? "receipt" : "receipt-outline"} size={24} color={color} />,
         }}
       />
 
@@ -67,15 +49,11 @@ export default function AppTabs() {
         name="settings"
         options={{
           title: "Configuración",
-          tabBarIcon: ({ color, focused }) => (
-            <Ionicons
-              name={focused ? "settings" : "settings-outline"}
-              size={24}
-              color={color}
-            />
-          ),
+          tabBarIcon: ({ color, focused }) => <Ionicons name={focused ? "settings" : "settings-outline"} size={24} color={color} />,
         }}
       />
     </Tabs>
   );
 }
+
+export default AppTabs;

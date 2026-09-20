@@ -51,6 +51,8 @@ export interface FormularioProductoProps {
   setNombre: (v: string) => void;
   marca: string;
   setMarca: (v: string) => void;
+  categoria: string; // 👈 nuevo
+  setCategoria: (v: string) => void; // 👈 nuevo
   atributos: AtributoProductoInput[];
   setAtributos: (v: AtributoProductoInput[]) => void;
   stock: string;
@@ -74,44 +76,30 @@ export function FormularioProducto(props: FormularioProductoProps) {
     <View style={styles.container}>
       <View style={styles.row}>
         <View style={styles.flexNombre}>
-          <Field
-            label="Nombre o modelo"
-            required
-            theme={theme}
-            placeholder="Ej. Nike Air Force 1"
-            value={props.nombre}
-            onChangeText={props.setNombre}
-            editable={!props.esIngreso}
-          />
+          <Field label="Nombre o modelo" required theme={theme} placeholder="Ej. Nike Air Force 1" value={props.nombre} onChangeText={props.setNombre} editable={!props.esIngreso} />
         </View>
         <View style={styles.flexMarca}>
           <Field label="Marca" theme={theme} placeholder="Ej. Nike" value={props.marca} onChangeText={props.setMarca} editable={!props.esIngreso} />
         </View>
       </View>
 
+      {/* 👇 NUEVO: campo de categoría, en su propia fila */}
       <View style={styles.row}>
         <View style={styles.flex1}>
-          <Field
-            label={stockLabel}
-            required={stockRequired}
-            theme={theme}
-            placeholder={props.esIngreso ? "Ej. 5" : "10"}
-            keyboardType="numeric"
-            value={props.stock}
-            onChangeText={props.setStock}
-            editable={stockEditable}
-          />
+          <Field label="Categoría" theme={theme} placeholder="Ej. Zapatillas, Útiles, Electrónica" value={props.categoria} onChangeText={props.setCategoria} editable={!props.esIngreso} />
+        </View>
+      </View>
+
+      <View style={styles.row}>
+        <View style={styles.flex1}>
+          <Field label={stockLabel} required={stockRequired} theme={theme} placeholder={props.esIngreso ? "Ej. 5" : "10"} keyboardType="numeric" value={props.stock} onChangeText={props.setStock} editable={stockEditable} />
         </View>
       </View>
 
       <View style={styles.attributesHeader}>
         <ThemedText type="smallBold">Atributos</ThemedText>
         {!props.esIngreso && (
-          <TouchableOpacity
-            onPress={() => props.setAtributos([...props.atributos, { clave: "", valor: "" }])}
-            accessibilityRole="button"
-            accessibilityLabel="Agregar atributo"
-          >
+          <TouchableOpacity onPress={() => props.setAtributos([...props.atributos, { clave: "", valor: "" }])} accessibilityRole="button" accessibilityLabel="Agregar atributo">
             <ThemedText type="smallBold" style={{ color: theme.primary }}>
               + Agregar
             </ThemedText>
@@ -164,31 +152,13 @@ export function FormularioProducto(props: FormularioProductoProps) {
 
       <View style={styles.row}>
         <View style={styles.flex1}>
-          <Field
-            label="Compra (S/)"
-            theme={theme}
-            placeholder="0.00"
-            keyboardType="numeric"
-            value={props.precioCompra}
-            onChangeText={props.setPrecioCompra}
-            editable={!props.esIngreso}
-          />
+          <Field label="Compra (S/)" theme={theme} placeholder="0.00" keyboardType="numeric" value={props.precioCompra} onChangeText={props.setPrecioCompra} editable={!props.esIngreso} />
         </View>
         <View style={styles.flex1}>
-          <Field
-            label="Venta (S/)"
-            required
-            theme={theme}
-            placeholder="0.00"
-            keyboardType="numeric"
-            value={props.precioVenta}
-            onChangeText={props.setPrecioVenta}
-            editable={!props.esIngreso}
-          />
+          <Field label="Venta (S/)" required theme={theme} placeholder="0.00" keyboardType="numeric" value={props.precioVenta} onChangeText={props.setPrecioVenta} editable={!props.esIngreso} />
         </View>
       </View>
 
-      {/* Mensaje informativo: solo cuando es EDICIÓN pura (no ingreso) */}
       {props.esEdicion && !props.esIngreso && (
         <View
           style={[
@@ -214,7 +184,6 @@ export function FormularioProducto(props: FormularioProductoProps) {
         </View>
       )}
 
-      {/* Mensaje informativo: cuando es INGRESO */}
       {props.esIngreso && (
         <View
           style={[

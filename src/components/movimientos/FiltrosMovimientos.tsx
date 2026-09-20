@@ -7,22 +7,25 @@ import { TipoFiltro } from "../../types/movimientos";
 interface Props {
   filtroActivo: TipoFiltro;
   alCambiarFiltro: (nuevoFiltro: TipoFiltro) => void;
+  contadores?: Record<TipoFiltro, number>; // 👈 opcional: badges con conteo
 }
 
-export function FiltrosMovimientos({ filtroActivo, alCambiarFiltro }: Props) {
-  const theme = useTheme() as typeof Colors.light;
+const OPCIONES: { key: TipoFiltro; label: string }[] = [
+  { key: "todos", label: "Todos" },
+  { key: "entradas", label: "Entradas" },
+  { key: "retiros", label: "Salidas" },
+  { key: "ajustes", label: "Ajustes" },
+];
 
-  const opciones: { key: TipoFiltro; label: string }[] = [
-    { key: "todos", label: "Todos" },
-    { key: "entradas", label: "Entradas" },
-    { key: "retiros", label: "Salidas" },
-    { key: "ajustes", label: "Ajustes" },
-  ];
+export function FiltrosMovimientos({ filtroActivo, alCambiarFiltro, contadores }: Props) {
+  const theme = useTheme() as typeof Colors.light;
 
   return (
     <View style={styles.filtrosContainer}>
-      {opciones.map((opcion) => {
+      {OPCIONES.map((opcion) => {
         const estaActivo = filtroActivo === opcion.key;
+        const conteo = contadores?.[opcion.key];
+
         return (
           <TouchableOpacity
             key={opcion.key}
@@ -32,11 +35,12 @@ export function FiltrosMovimientos({ filtroActivo, alCambiarFiltro }: Props) {
               styles.filtroBoton,
               {
                 borderColor: estaActivo ? theme.primary : theme.border,
-                backgroundColor: estaActivo
-                  ? theme.primary
-                  : theme.backgroundElement || theme.card,
+                backgroundColor: estaActivo ? theme.primary : "transparent",
               },
             ]}
+            accessibilityRole="button"
+            accessibilityLabel={`Filtrar por ${opcion.label}`}
+            accessibilityState={{ selected: estaActivo }}
           >
             <ThemedText
               type="smallBold"
@@ -45,10 +49,12 @@ export function FiltrosMovimientos({ filtroActivo, alCambiarFiltro }: Props) {
                 styles.filtroTexto,
                 {
                   color: estaActivo ? theme.textInverse : theme.textSecondary,
+                  fontWeight: estaActivo ? "700" : "500",
                 },
               ]}
             >
               {opcion.label}
+              {conteo !== undefined ? ` (${conteo})` : ""}
             </ThemedText>
           </TouchableOpacity>
         );
@@ -61,21 +67,21 @@ const styles = StyleSheet.create({
   filtrosContainer: {
     width: "100%",
     flexDirection: "row",
-    gap: Spacing.one,
-    paddingVertical: 4,
-    marginBottom: 4,
+    gap: Spacing.two,
+    marginBottom: Spacing.three,
   },
   filtroBoton: {
     flex: 1,
     minWidth: 0,
-    paddingHorizontal: 2,
-    paddingVertical: 9,
+    paddingHorizontal: Spacing.two,
+    paddingVertical: 10,
     borderRadius: 12,
     borderWidth: 1,
     alignItems: "center",
     justifyContent: "center",
   },
   filtroTexto: {
-    fontSize: 12,
+    fontSize: 11,
+    letterSpacing: 0.2,
   },
 });

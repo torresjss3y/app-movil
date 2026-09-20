@@ -59,6 +59,48 @@ export const initDB = () => {
         total_unidades INTEGER DEFAULT 0,
         fecha TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
       );
+      -- ========================================================
+      -- TABLA VENTAS (cabecera del ticket)
+      -- ========================================================
+      CREATE TABLE IF NOT EXISTS ventas (
+        id TEXT PRIMARY KEY NOT NULL,
+        lote_id TEXT,
+        total REAL NOT NULL,
+        total_items INTEGER NOT NULL,
+        total_unidades INTEGER NOT NULL,
+        metodo_pago TEXT NOT NULL DEFAULT 'efectivo',
+        nota TEXT,
+        fecha TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+        FOREIGN KEY (lote_id) REFERENCES lotes_movimiento(id) ON DELETE SET NULL
+      );
+
+      -- ========================================================
+      -- TABLA VENTAS_ITEMS (líneas del ticket)
+      -- ========================================================
+      CREATE TABLE IF NOT EXISTS ventas_items (
+        id TEXT PRIMARY KEY NOT NULL,
+        venta_id TEXT NOT NULL,
+        producto_id TEXT NOT NULL,
+        producto_nombre TEXT NOT NULL,
+        producto_marca TEXT,
+        cantidad INTEGER NOT NULL CHECK (cantidad > 0),
+        precio_venta_unitario REAL NOT NULL,
+        precio_compra_unitario REAL NOT NULL DEFAULT 0,
+        subtotal REAL NOT NULL,
+        FOREIGN KEY (venta_id) REFERENCES ventas(id) ON DELETE CASCADE,
+        FOREIGN KEY (producto_id) REFERENCES productos(id) ON DELETE CASCADE
+      );
+
+      -- ========================================================
+      -- ÍNDICES
+      -- ========================================================
+      CREATE INDEX IF NOT EXISTS idx_ventas_fecha ON ventas(fecha);
+      CREATE INDEX IF NOT EXISTS idx_ventas_lote ON ventas(lote_id);
+      CREATE INDEX IF NOT EXISTS idx_ventas_metodo ON ventas(metodo_pago);
+
+      CREATE INDEX IF NOT EXISTS idx_ventas_items_venta ON ventas_items(venta_id);
+      CREATE INDEX IF NOT EXISTS idx_ventas_items_producto ON ventas_items(producto_id);
+            
 
 
       -- 3. TRIGGER: fecha de actualización del producto

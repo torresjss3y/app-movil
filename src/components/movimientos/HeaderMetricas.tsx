@@ -1,34 +1,46 @@
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { Colors, Spacing } from "@/constants/theme";
+import { MetricasResumen } from "@/database/productosService";
 import { useTheme } from "@/hooks/use-theme";
 import { StyleSheet, View } from "react-native";
 
 interface Props {
-  gananciaHoy: number;
-  gananciaTotal: number;
+  metricas: MetricasResumen;
 }
 
-export function HeaderMetricas({ gananciaHoy, gananciaTotal }: Props) {
+export function HeaderMetricas({ metricas }: Props) {
   const theme = useTheme() as typeof Colors.light;
+
+  const etiquetaProductos = metricas.totalProductos === 1 ? "1 producto" : `${metricas.totalProductos} productos`;
+
+  const etiquetaUnidades = metricas.unidadesVendidasHoy === 1 ? "1 unidad vendida" : `${metricas.unidadesVendidasHoy} unidades vendidas`;
 
   return (
     <View style={styles.metricsRow}>
-      <ThemedView style={[styles.card, { borderColor: theme.border }]}>
-        <ThemedText type="small" style={styles.metricLabel}>
-          Ganancias de Hoy
+      {/* Tarjeta 1: Ganancia de hoy */}
+      <ThemedView style={[styles.card, { borderColor: theme.border, backgroundColor: theme.card }]}>
+        <ThemedText type="small" style={[styles.metricLabel, { color: theme.textSecondary }]}>
+          Ganancia hoy
         </ThemedText>
-        <ThemedText type="smallBold" style={[styles.successValue, { color: theme.success }]}>
-          S/ {gananciaHoy.toFixed(2)}
+        <ThemedText type="smallBold" style={[styles.metricValue, { color: theme.success }]}>
+          S/ {metricas.gananciaHoy.toFixed(2)}
+        </ThemedText>
+        <ThemedText type="small" style={[styles.subLabel, { color: theme.textSecondary }]}>
+          {etiquetaUnidades}
         </ThemedText>
       </ThemedView>
 
-      <ThemedView style={[styles.card, { borderColor: theme.border }]}>
-        <ThemedText type="small" style={styles.metricLabel}>
-          Ganancia Total
+      {/* Tarjeta 2: Inventario */}
+      <ThemedView style={[styles.card, { borderColor: theme.border, backgroundColor: theme.card }]}>
+        <ThemedText type="small" style={[styles.metricLabel, { color: theme.textSecondary }]}>
+          Inventario
         </ThemedText>
-        <ThemedText type="smallBold" style={[styles.successValue, { color: theme.success }]}>
-          S/ {gananciaTotal.toFixed(2)}
+        <ThemedText type="smallBold" style={[styles.metricValue, { color: theme.primary }]}>
+          S/ {metricas.valorInventarioVenta.toFixed(2)}
+        </ThemedText>
+        <ThemedText type="small" style={[styles.subLabel, { color: theme.textSecondary }]}>
+          {etiquetaProductos}
         </ThemedText>
       </ThemedView>
     </View>
@@ -42,17 +54,28 @@ const styles = StyleSheet.create({
   },
   card: {
     flex: 1,
-    padding: Spacing.three,
-    borderRadius: 10,
+    paddingVertical: Spacing.three,
+    paddingHorizontal: Spacing.three,
+    borderRadius: 12,
     borderWidth: 1,
-    gap: Spacing.one,
+    gap: 4,
     alignItems: "center",
     justifyContent: "center",
   },
   metricLabel: {
-    opacity: 0.7,
+    fontSize: 11,
+    fontWeight: "600",
+    letterSpacing: 0.3,
+    textTransform: "uppercase",
   },
-  successValue: {
-    color: "#0E7490",
+  metricValue: {
+    fontSize: 20,
+    letterSpacing: 0.2,
+    marginTop: 2,
+  },
+  subLabel: {
+    fontSize: 10,
+    opacity: 0.75,
+    marginTop: 2,
   },
 });

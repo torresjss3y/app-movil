@@ -1,8 +1,8 @@
-import { DetalleMovimientoModal, FiltrosMovimientos, HeaderMetricas, ItemMovimiento } from "@/components/movimientos";
+import { AccionesMovimiento, DetalleMovimientoModal, FiltrosMovimientos, HeaderMetricas, ItemMovimiento, ModalMovimientoRapido } from "@/components/movimientos";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { MaxContentWidth, Spacing } from "@/constants/theme";
-import { LoteUI, obtenerLotes } from "@/database/productosService";
+import { LoteUI, MetricasResumen, obtenerLotes, obtenerMetricas } from "@/database/productosService";
 import { useTheme } from "@/hooks/use-theme";
 import { useFocusEffect } from "expo-router";
 import { useCallback, useMemo, useState } from "react";
@@ -15,12 +15,24 @@ export default function MovimientosScreen() {
   const [busqueda, setBusqueda] = useState("");
   const [filtro, setFiltro] = useState<TipoFiltro>("todos");
   const [lotes, setLotes] = useState<LoteUI[]>([]);
-
   const [loteSeleccionado, setLoteSeleccionado] = useState<LoteUI | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
+  const [movimientoModo, setMovimientoModo] = useState<"entrada" | "salida" | null>(null);
+
+  const [metricas, setMetricas] = useState<MetricasResumen>({
+    gananciaHoy: 0,
+    gananciaTotal: 0,
+    unidadesVendidasHoy: 0,
+    unidadesVendidasTotal: 0,
+    valorInventarioVenta: 0,
+    valorInventarioCosto: 0,
+    totalProductos: 0,
+    productosBajoStock: 0,
+  });
 
   const cargarLotes = useCallback(() => {
     setLotes(obtenerLotes(200));
+    setMetricas(obtenerMetricas());
   }, []);
 
   useFocusEffect(
@@ -39,7 +51,7 @@ export default function MovimientosScreen() {
 
       if (!texto) return true;
 
-      return l.motivo.toLowerCase().includes(texto) || (l.nota && l.nota.toLowerCase().includes(texto));
+      return l.motivo.toLowerCase().includes(texto) || (l.nota?.toLowerCase().includes(texto) ?? false) || (l.productos_nombres?.toLowerCase().includes(texto) ?? false);
     });
   }, [lotes, busqueda, filtro]);
 
@@ -53,13 +65,19 @@ export default function MovimientosScreen() {
     setLoteSeleccionado(null);
   };
 
+  const abrirIngreso = () => setMovimientoModo("entrada");
+  const abrirRetiro = () => setMovimientoModo("salida");
+  const cerrarMovimiento = () => setMovimientoModo(null);
+
   return (
     <ThemedView style={[styles.container, { backgroundColor: theme.background }]}>
       <SafeAreaView style={styles.safeArea} edges={["top"]}>
         <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-          <HeaderMetricas gananciaHoy={0} gananciaTotal={0} />
+          {/* 1. Métricas */}
+          <HeaderMetricas metricas={metricas} />
 
-          <View style={styles.sectionMargin}>
+          {/* 2. Búsqueda + Filtros */}
+          <View style={styles.section}>
             <TextInput
               style={[
                 styles.searchInput,
@@ -69,28 +87,32 @@ export default function MovimientosScreen() {
                   color: theme.text,
                 },
               ]}
-              placeholder="Buscar por motivo o nota..."
+              placeholder="Buscar por motivo, nota o producto..."
               placeholderTextColor={theme.textSecondary}
               value={busqueda}
               onChangeText={setBusqueda}
             />
+
+            <FiltrosMovimientos filtroActivo={filtro} alCambiarFiltro={setFiltro} />
           </View>
 
-          <View style={styles.section}>
-            <FiltrosMovimientos filtroActivo={filtro} alCambiarFiltro={setFiltro} />
+          {/* 3. Ingreso / Retiro */}
+          <AccionesMovimiento onIngreso={abrirIngreso} onRetiro={abrirRetiro} />
 
-            <View style={styles.movementList}>
-              {lotesFiltrados.length > 0 ? (
-                lotesFiltrados.map((l) => <ItemMovimiento key={l.id} lote={l} onPress={() => abrirDetalle(l)} />)
-              ) : (
-                <ThemedText type="small" style={styles.placeholderText}>
-                  No hay movimientos registrados.
-                </ThemedText>
-              )}
-            </View>
+          {/* 4. Lista de movimientos */}
+          <View style={styles.movementList}>
+            {lotesFiltrados.length > 0 ? (
+              lotesFiltrados.map((l) => <ItemMovimiento key={l.id} lote={l} onPress={() => abrirDetalle(l)} />)
+            ) : (
+              <ThemedText type="small" style={styles.placeholderText}>
+                No hay movimientos registrados.
+              </ThemedText>
+            )}
           </View>
         </ScrollView>
       </SafeAreaView>
+
+      <ModalMovimientoRapido key={movimientoModo ?? "cerrado"} visible={movimientoModo !== null} modo={movimientoModo ?? "entrada"} onClose={cerrarMovimiento} onSuccess={cargarLotes} />
 
       <DetalleMovimientoModal visible={modalVisible} lote={loteSeleccionado} onClose={cerrarDetalle} />
     </ThemedView>
@@ -107,12 +129,11 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flexGrow: 1,
-    paddingHorizontal: Spacing.four,
+    paddingHorizontal: Spacing.three,
     paddingTop: Spacing.three,
     paddingBottom: Spacing.three,
     gap: Spacing.three,
   },
-  sectionMargin: { marginBottom: Spacing.two },
   searchInput: {
     height: 46,
     borderWidth: 1,
