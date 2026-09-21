@@ -127,26 +127,14 @@ export default function InventarioScreen() {
         />
 
         {/* Botón flotante: Nuevo producto (cómodo para el pulgar) */}
-        <TouchableOpacity
-          style={[styles.fab, { backgroundColor: theme.primary }]}
-          onPress={abrirNuevo}
-          activeOpacity={0.85}
-          accessibilityRole="button"
-          accessibilityLabel="Nuevo producto"
-        >
+        <TouchableOpacity style={[styles.fab, { backgroundColor: theme.primary }]} onPress={abrirNuevo} activeOpacity={0.85} accessibilityRole="button" accessibilityLabel="Nuevo producto">
           <Ionicons name="add" size={22} color="#FFF" />
           <ThemedText type="smallBold" style={{ color: "#FFF", marginLeft: 6 }}>
             Nuevo producto
           </ThemedText>
         </TouchableOpacity>
 
-        <ModalProducto
-          key={productoEditando?.id ?? "nuevo"}
-          visible={modalVisible}
-          onClose={cerrarModal}
-          onSuccess={cargarProductos}
-          productoEditar={productoEditando}
-        />
+        <ModalProducto key={productoEditando?.id ?? "nuevo"} visible={modalVisible} onClose={cerrarModal} onSuccess={cargarProductos} productoEditar={productoEditando} />
       </SafeAreaView>
     </ThemedView>
   );
@@ -159,7 +147,7 @@ const styles = StyleSheet.create({
     maxWidth: MaxContentWidth,
     alignSelf: "center",
     width: "100%",
-    paddingHorizontal: Spacing.four,
+    paddingHorizontal: Spacing.three,
     paddingTop: Spacing.three,
   },
   sectionMargin: { marginBottom: Spacing.two },

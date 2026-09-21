@@ -45,7 +45,7 @@ export function registrarVenta(args: RegistrarVentaArgs): string | null {
       const loteId = registrarLoteEnTransaccion({
         tipo: "salida",
         motivo: "venta",
-        nota: `Venta ${ventaId} (${args.metodo_pago}) · Total: $${args.total.toFixed(2)}`,
+        nota: `Venta ${ventaId} (${args.metodo_pago}) · Total: S/ ${args.total.toFixed(2)}`,
         items: args.items.map((item) => ({
           producto_id: item.producto_id,
           cantidad: item.cantidad,
@@ -220,9 +220,7 @@ export function generarCsvVentas(desde: string, hasta: string): string {
   const cabeceras = ["Folio", "Fecha", "Metodo de pago", "Productos", "Unidades", "Total"];
   const filas = ventas.map((v) => [v.id, v.fecha, v.metodo_pago, String(v.total_items), String(v.total_unidades), v.total.toFixed(2)]);
 
-  return [cabeceras, ...filas]
-    .map((fila) => fila.map((celda) => escaparCeldaCsv(celda)).join(";"))
-    .join("\n");
+  return [cabeceras, ...filas].map((fila) => fila.map((celda) => escaparCeldaCsv(celda)).join(";")).join("\n");
 }
 
 function formatearFechaSql(fecha: Date): string {

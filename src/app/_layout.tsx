@@ -23,9 +23,14 @@ export default function TabLayout() {
       try {
         // 1. Inicializa la BD SQLite
         initDB();
-        limpiarLotesHuerfanos();
-        verificarEstructuraDB();
-        verificarContenidoDB();
+
+        // 2. Diagnóstico y mantenimiento solo en desarrollo (evita coste y
+        //    ruido en consola en builds de producción).
+        if (__DEV__) {
+          limpiarLotesHuerfanos();
+          verificarEstructuraDB();
+          verificarContenidoDB();
+        }
       } catch (e) {
         console.warn("Error al inicializar:", e);
       } finally {

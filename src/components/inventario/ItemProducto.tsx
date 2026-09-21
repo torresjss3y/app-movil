@@ -1,6 +1,6 @@
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
-import { Spacing } from "@/constants/theme";
+import { ListItemHeight, Spacing } from "@/constants/theme";
 import { activarProducto, desactivarProducto, eliminarProducto, ProductoDB } from "@/database/productosService";
 import { useTheme } from "@/hooks/use-theme";
 import { Ionicons } from "@expo/vector-icons";
@@ -177,18 +177,19 @@ export const ItemProducto = memo(function ItemProducto({ producto, onRefresh, on
 
 const styles = StyleSheet.create({
   card: {
+    minHeight: ListItemHeight,
     flexDirection: "row",
     alignItems: "center",
     borderRadius: 12,
     borderWidth: 1,
     paddingVertical: Spacing.two,
-    paddingHorizontal: Spacing.three,
+    paddingHorizontal: Spacing.two,
     gap: Spacing.two,
   },
   iconCircle: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     alignItems: "center",
     justifyContent: "center",
   },

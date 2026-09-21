@@ -23,7 +23,7 @@ export function HeaderMetricas({ metricas }: Props) {
         <ThemedText type="small" style={[styles.metricLabel, { color: theme.textSecondary }]}>
           Ganancia hoy
         </ThemedText>
-        <ThemedText type="smallBold" style={[styles.metricValue, { color: theme.success }]}>
+        <ThemedText type="smallBold" style={[styles.metricValue, { color: theme.data }]}>
           S/ {metricas.gananciaHoy.toFixed(2)}
         </ThemedText>
         <ThemedText type="small" style={[styles.subLabel, { color: theme.textSecondary }]}>
@@ -36,7 +36,7 @@ export function HeaderMetricas({ metricas }: Props) {
         <ThemedText type="small" style={[styles.metricLabel, { color: theme.textSecondary }]}>
           Inventario
         </ThemedText>
-        <ThemedText type="smallBold" style={[styles.metricValue, { color: theme.primary }]}>
+        <ThemedText type="smallBold" style={[styles.metricValue, { color: theme.dataAlt }]}>
           S/ {metricas.valorInventarioVenta.toFixed(2)}
         </ThemedText>
         <ThemedText type="small" style={[styles.subLabel, { color: theme.textSecondary }]}>

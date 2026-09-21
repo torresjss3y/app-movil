@@ -80,13 +80,10 @@ export function ModalVentas({ visible, onClose, onSuccess }: Props) {
     return acc + (Number.isFinite(n) && n > 0 ? n : 0);
   }, 0);
 
-  const subtotal = items.reduce((acc, it) => {
+  const total = items.reduce((acc, it) => {
     const n = parseInt(it.cantidad, 10) || 0;
     return acc + n * it.producto.precio_venta;
   }, 0);
-
-  const iva = subtotal * 0.16;
-  const total = subtotal + iva;
 
   const reanudarEscaneo = () => {
     setEscaneando(false);
@@ -161,7 +158,7 @@ export function ModalVentas({ visible, onClose, onSuccess }: Props) {
       });
     }
 
-    showDialog("Confirmar venta", `Total: $${total.toFixed(2)}\n${itemsValidos.length} producto(s) · ${totalUnidades} u.\nPago: ${metodoPago}`, "info", () => {
+    showDialog("Confirmar venta", `Total: S/ ${total.toFixed(2)}\n${itemsValidos.length} producto(s) · ${totalUnidades} u.\nPago: ${metodoPago}`, "info", () => {
       const ventaId = registrarVenta({
         items: itemsValidos,
         metodo_pago: metodoPago,
@@ -169,7 +166,7 @@ export function ModalVentas({ visible, onClose, onSuccess }: Props) {
       });
 
       if (ventaId) {
-        showDialog("Venta registrada", `Folio: ${ventaId}\nTotal: $${total.toFixed(2)}\nPago: ${metodoPago}`, "success", () => {
+        showDialog("Venta registrada", `Folio: ${ventaId}\nTotal: S/ ${total.toFixed(2)}\nPago: ${metodoPago}`, "success", () => {
           setItems([]);
           onClose();
           onSuccess?.();
@@ -218,7 +215,7 @@ export function ModalVentas({ visible, onClose, onSuccess }: Props) {
                         {it.producto.nombre}
                       </ThemedText>
                       <ThemedText type="small" style={{ color: theme.textSecondary, fontSize: 10 }} numberOfLines={1}>
-                        ${it.producto.precio_venta.toFixed(2)} c/u · Stock: {it.producto.stock} u.
+                        S/ {it.producto.precio_venta.toFixed(2)} c/u · Stock: {it.producto.stock} u.
                       </ThemedText>
                       {cantNum > 0 && (
                         <ThemedText
@@ -230,7 +227,7 @@ export function ModalVentas({ visible, onClose, onSuccess }: Props) {
                             fontWeight: "700",
                           }}
                         >
-                          Subtotal: ${subtotalItem.toFixed(2)}
+                          Subtotal: S/ {subtotalItem.toFixed(2)}
                         </ThemedText>
                       )}
                     </View>
@@ -320,9 +317,6 @@ export function ModalVentas({ visible, onClose, onSuccess }: Props) {
                 <ThemedText type="small" style={{ color: theme.textSecondary, fontSize: 11 }}>
                   {items.length} producto{items.length !== 1 ? "s" : ""} · {totalUnidades} u.
                 </ThemedText>
-                <ThemedText type="small" style={{ color: theme.textSecondary, fontSize: 11 }}>
-                  Subtotal: ${subtotal.toFixed(2)}
-                </ThemedText>
               </View>
 
               <View style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 2 }}>
@@ -330,7 +324,7 @@ export function ModalVentas({ visible, onClose, onSuccess }: Props) {
                   Total
                 </ThemedText>
                 <ThemedText type="smallBold" style={{ color: colorModo, fontSize: 15 }}>
-                  ${total.toFixed(2)}
+                  S/ {total.toFixed(2)}
                 </ThemedText>
               </View>
             </View>
@@ -345,7 +339,7 @@ export function ModalVentas({ visible, onClose, onSuccess }: Props) {
 
             <TouchableOpacity style={[styles.btn, styles.btnSubmit, { backgroundColor: colorModo, opacity: items.length === 0 ? 0.5 : 1 }]} onPress={handleCobrar} disabled={items.length === 0}>
               <ThemedText type="smallBold" style={{ color: "#FFFFFF" }}>
-                Cobrar {items.length > 0 ? `($${total.toFixed(2)})` : ""}
+                Cobrar {items.length > 0 ? `(S/ ${total.toFixed(2)})` : ""}
               </ThemedText>
             </TouchableOpacity>
           </View>

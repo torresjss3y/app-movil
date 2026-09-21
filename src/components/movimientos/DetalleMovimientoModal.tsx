@@ -13,6 +13,8 @@ interface Props {
   onClose: () => void;
 }
 
+const moneda = (valor: number) => `S/ ${(Number.isFinite(valor) ? valor : 0).toFixed(2)}`;
+
 // --- Configuración por tipo de movimiento -----------------------------------
 
 const CONFIG_TIPO: Record<
@@ -74,8 +76,6 @@ const formatearFolio = (id: string): string => {
   return `#${id.slice(-6).toUpperCase()}`;
 };
 
-const pluralizar = (n: number, singular: string, plural: string): string => `${n} ${n === 1 ? singular : plural}`;
-
 // --- Chip reutilizable -------------------------------------------------------
 
 function Chip({ icon, label, color, bg }: { icon: keyof typeof Ionicons.glyphMap; label: string; color: string; bg: string }) {
@@ -117,19 +117,24 @@ export function DetalleMovimientoModal({ visible, lote, onClose }: Props) {
     return obtenerItemsDeLote(loteId);
   }, [loteId]);
 
+  // Total valorizado del lote y si los precios provienen de una venta real.
+  const totales = useMemo(() => {
+    let venta = 0;
+    let todosDeVenta = items.length > 0;
+    for (const it of items) {
+      const cantidad = Number(it.cantidad) || 0;
+      venta += cantidad * (Number(it.precio_venta_unitario) || 0);
+      if (!it.precios_de_venta) todosDeVenta = false;
+    }
+    return { venta, todosDeVenta };
+  }, [items]);
+
   if (!lote) return null;
 
   const config = CONFIG_TIPO[lote.tipo] ?? CONFIG_TIPO.ajuste;
   const colorTipo = theme[config.colorKey];
   const colorFondo = theme[`${config.colorKey}Background` as const] ?? theme.card;
-
-  const signo = lote.tipo === "entrada" ? "+" : lote.tipo === "salida" ? "-" : "";
-
   const motivoTexto = MOTIVO_LABEL[lote.motivo] ?? (lote.motivo ?? "").replace(/_/g, " ");
-
-  const etiquetaTotal = lote.tipo === "entrada" ? "Total ingresado" : lote.tipo === "salida" ? "Total retirado" : "Total ajustado";
-
-  const totalProductos = lote.total_productos ?? items.length;
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
@@ -145,9 +150,7 @@ export function DetalleMovimientoModal({ visible, lote, onClose }: Props) {
               <ThemedText type="smallBold" style={styles.titulo}>
                 {motivoTexto}
               </ThemedText>
-              <ThemedText type="small" style={[styles.headerSub, { color: theme.textSecondary }]}>
-                {config.descripcion}
-              </ThemedText>
+
               <ThemedText type="small" style={[styles.headerFecha, { color: theme.textTertiary }]}>
                 {formatearFecha(lote.fecha)} · {formatearFolio(lote.id)}
               </ThemedText>
@@ -160,27 +163,6 @@ export function DetalleMovimientoModal({ visible, lote, onClose }: Props) {
 
           {/* ── Divisor ─────────────────────────────────────── */}
           <View style={[styles.divider, { backgroundColor: theme.divider }]} />
-
-          {/* ── Nota del lote ──────────────────────────────── */}
-          {lote.nota ? (
-            <>
-              <View
-                style={[
-                  styles.notaBox,
-                  {
-                    backgroundColor: theme.card,
-                    borderColor: theme.divider,
-                  },
-                ]}
-              >
-                <Ionicons name="document-text-outline" size={14} color={theme.textSecondary} />
-                <ThemedText type="small" style={[styles.notaTexto, { color: theme.textSecondary }]}>
-                  {lote.nota}
-                </ThemedText>
-              </View>
-              <View style={[styles.divider, { backgroundColor: theme.divider }]} />
-            </>
-          ) : null}
 
           {/* ── Sección: Productos ─────────────────────────── */}
           <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false} nestedScrollEnabled>
@@ -200,22 +182,27 @@ export function DetalleMovimientoModal({ visible, lote, onClose }: Props) {
 
                 const colorCantidad = esMixta ? theme.warning : colorTipo;
 
+                const cantidad = Number(item.cantidad) || 0;
+                const precioUnitario = Number(item.precio_venta_unitario) || 0;
+                const subtotal = cantidad * precioUnitario;
+
                 return (
                   <View key={item.id}>
                     <View style={styles.productoRow}>
                       <View style={styles.productoInfo}>
                         <ThemedText type="smallBold" numberOfLines={1}>
                           {item.producto_nombre}
+                          {(item.producto_marca || (esMixta && motivoItem)) && (
+                            <View style={styles.chipsRow}>
+                              {item.producto_marca ? <Chip icon="pricetag-outline" label={item.producto_marca} color={theme.textSecondary} bg={theme.backgroundElement ?? theme.card} /> : null}
+                              {esMixta && motivoItem ? <Chip icon="git-compare-outline" label={motivoItem} color={theme.warning} bg={theme.warningBackground ?? theme.card} /> : null}
+                            </View>
+                          )}
                         </ThemedText>
-
-                        {/* Chips: marca + categoría (+ motivo si es mixta) */}
-                        {(item.producto_marca || item.producto_categoria || (esMixta && motivoItem)) && (
-                          <View style={styles.chipsRow}>
-                            {item.producto_marca ? <Chip icon="pricetag-outline" label={item.producto_marca} color={theme.textSecondary} bg={theme.backgroundElement ?? theme.card} /> : null}
-                            {item.producto_categoria ? <Chip icon="folder-outline" label={item.producto_categoria} color={theme.textSecondary} bg={theme.backgroundElement ?? theme.card} /> : null}
-                            {esMixta && motivoItem ? <Chip icon="git-compare-outline" label={motivoItem} color={theme.warning} bg={theme.warningBackground ?? theme.card} /> : null}
-                          </View>
-                        )}
+                        {/* Precio unitario */}
+                        <ThemedText type="small" numberOfLines={1} style={[styles.productoPrecio, { color: theme.textSecondary }]}>
+                          {moneda(precioUnitario)} c/u
+                        </ThemedText>
 
                         {/* Nota por línea */}
                         {item.nota ? (
@@ -225,10 +212,15 @@ export function DetalleMovimientoModal({ visible, lote, onClose }: Props) {
                         ) : null}
                       </View>
 
-                      <ThemedText type="smallBold" style={[styles.cantidad, { color: colorCantidad }]}>
-                        {signoItem}
-                        {item.cantidad}
-                      </ThemedText>
+                      <View style={styles.productoDerecha}>
+                        <ThemedText type="smallBold" style={[styles.cantidad, { color: colorCantidad }]}>
+                          {signoItem}
+                          {item.cantidad}
+                        </ThemedText>
+                        <ThemedText type="small" numberOfLines={1} style={[styles.subtotalLinea, { color: theme.textSecondary }]}>
+                          {moneda(subtotal)}
+                        </ThemedText>
+                      </View>
                     </View>
 
                     {/* Separador entre items, pero no después del último */}
@@ -242,29 +234,28 @@ export function DetalleMovimientoModal({ visible, lote, onClose }: Props) {
           {/* ── Divisor ─────────────────────────────────────── */}
           <View style={[styles.divider, { backgroundColor: theme.divider }]} />
 
-          {/* ── Total ──────────────────────────────────────── */}
-          <View style={styles.totalRow}>
-            <ThemedText type="small" style={[styles.totalLabel, { color: theme.textSecondary }]}>
-              {etiquetaTotal}
-            </ThemedText>
+          {/* ── Valorización del lote (estilo ticket POS) ──── */}
+          {items.length > 0 && (
+            <View style={styles.totalesLista}>
+              <View style={[styles.granTotalLinea, { borderTopColor: theme.divider }]}>
+                <ThemedText type="smallBold" style={[styles.granTotalLabel, { color: theme.text }]}>
+                  Total {lote.tipo === "entrada" ? "ingresado" : lote.tipo === "salida" ? "retirado" : "ajustado"}
+                </ThemedText>
+                <ThemedText type="smallBold" style={[styles.granTotalValor, { color: colorTipo }]}>
+                  {moneda(totales.venta)}
+                </ThemedText>
+              </View>
 
-            <View style={styles.totalRight}>
-              <ThemedText type="smallBold" style={[styles.totalCantidad, { color: colorTipo }]}>
-                {signo}
-                {lote.total_unidades}
-              </ThemedText>
-              <ThemedText type="small" style={[styles.totalUnidad, { color: theme.textSecondary }]}>
-                unidades
-              </ThemedText>
+              {!totales.todosDeVenta && (
+                <View style={styles.valorAviso}>
+                  <Ionicons name="information-circle-outline" size={12} color={theme.textTertiary} />
+                  <ThemedText type="small" style={[styles.valorAvisoTexto, { color: theme.textTertiary }]}>
+                    Precios de referencia del catálogo actual.
+                  </ThemedText>
+                </View>
+              )}
             </View>
-          </View>
-
-          {/* ── Resumen productos/unidades ─────────────────── */}
-          <ThemedText type="small" style={[styles.totalProductos, { color: theme.textTertiary }]}>
-            {pluralizar(totalProductos, "producto", "productos")}
-            {" · "}
-            {pluralizar(lote.total_unidades, "unidad", "unidades")}
-          </ThemedText>
+          )}
         </View>
       </View>
     </Modal>
@@ -382,39 +373,54 @@ const styles = StyleSheet.create({
     fontStyle: "italic",
     marginTop: 3,
   },
+  productoPrecio: {
+    fontSize: 11,
+    marginTop: 3,
+  },
+  productoDerecha: {
+    alignItems: "flex-end",
+    gap: 2,
+  },
   cantidad: {
     fontSize: 15,
     letterSpacing: 0.2,
     paddingTop: 1,
   },
+  subtotalLinea: {
+    fontSize: 11,
+    letterSpacing: 0.2,
+  },
   itemDivider: {
     height: StyleSheet.hairlineWidth,
   },
 
-  // Total
-  totalRow: {
+  // Valorización del lote (estilo ticket POS, sin tarjeta)
+  totalesLista: {
+    gap: 6,
+  },
+  granTotalLinea: {
     flexDirection: "row",
-    alignItems: "flex-start",
+    alignItems: "center",
     justifyContent: "space-between",
+    paddingTop: Spacing.two,
+    borderTopWidth: StyleSheet.hairlineWidth,
   },
-  totalLabel: {
-    fontSize: 12,
-    paddingTop: 4,
+  granTotalLabel: {
+    fontSize: 13,
   },
-  totalRight: {
-    alignItems: "flex-end",
+  granTotalValor: {
+    fontSize: 17,
+    letterSpacing: 0.2,
   },
-  totalCantidad: {
-    fontSize: 26,
-    letterSpacing: -0.5,
-    lineHeight: 30,
+  valorAviso: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginTop: 2,
   },
-  totalUnidad: {
-    fontSize: 11,
-    marginTop: -2,
-  },
-  totalProductos: {
-    fontSize: 11,
-    marginTop: -Spacing.two,
+  valorAvisoTexto: {
+    fontSize: 10,
+    flex: 1,
+    fontStyle: "italic",
   },
 });

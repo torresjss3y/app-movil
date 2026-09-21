@@ -273,7 +273,6 @@ export function ModalMovimientoRapido({ visible, modo, onClose, onSuccess }: Pro
                     { key: "otro", label: "Otro" },
                   ]
                 : [
-                    { key: "venta", label: "Venta" },
                     { key: "merma", label: "Merma" },
                     { key: "uso_interno", label: "Uso interno" },
                     { key: "otro", label: "Otro" },

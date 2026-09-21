@@ -95,6 +95,14 @@ export interface ItemLoteUI {
   motivo: string;
   nota?: string | null;
   fecha: string;
+  // Precio unitario de venta: el real de la venta (si el lote proviene de una
+  // venta) o el del catálogo del producto como referencia.
+  precio_venta_unitario: number;
+  // Precio unitario de compra: el real de la venta (si aplica) o el del catálogo.
+  precio_compra_unitario: number;
+  // Indica si los precios provienen de una venta registrada (true) o del
+  // catálogo del producto (false), para saber si son un dato histórico exacto.
+  precios_de_venta: number;
 }
 
 // Lote completo con productos consolidados para UI
@@ -107,6 +115,9 @@ export interface LoteUI {
   total_unidades: number;
   fecha: string;
   productos_nombres?: string | null; // GROUP_CONCAT de nombres
+  // Monto total de la venta asociada (si el lote proviene de una venta). Null en
+  // entradas, ajustes u otros movimientos que no sean ventas.
+  total_venta?: number | null;
 }
 
 // ---------- Métricas ----------
@@ -466,9 +477,32 @@ export const eliminarMovimiento = (id: string): boolean => {
 
 // 6. CONSULTAS DE MOVIMIENTOS Y LOTES
 // 6.1. Obtener lotes (con nombres de productos para búsqueda)
-export const obtenerLotes = (limite: number = 100): LoteUI[] => {
+// `desde`/`hasta` opcionales en formato 'YYYY-MM-DD HH:MM:SS' para filtrar por
+// rango de fechas (mismo formato que usa ventaService).
+export const obtenerLotes = (limite: number = 100, desde?: string, hasta?: string): LoteUI[] => {
   try {
-    return db.getAllSync<LoteUI>(
+    const filtroFecha = desde && hasta ? "WHERE l.fecha BETWEEN ? AND ?" : "";
+    const params: (string | number)[] = desde && hasta ? [desde, hasta, limite] : [limite];
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        return db.getAllSync<LoteUI>(
       `SELECT
          l.id,
          l.tipo,
@@ -477,14 +511,17 @@ export const obtenerLotes = (limite: number = 100): LoteUI[] => {
          l.total_productos,
          l.total_unidades,
          l.fecha,
-         GROUP_CONCAT(p.nombre, ' · ') AS productos_nombres
+         GROUP_CONCAT(p.nombre, ' · ') AS productos_nombres,
+         v.total AS total_venta
        FROM lotes_movimiento l
        LEFT JOIN movimientos_stock m ON m.lote_id = l.id
        LEFT JOIN productos p ON p.id = m.producto_id
+       LEFT JOIN ventas v ON v.lote_id = l.id
+       ${filtroFecha}
        GROUP BY l.id
        ORDER BY l.fecha DESC, l.rowid DESC
        LIMIT ?;`,
-      [limite],
+      params,
     );
   } catch (error) {
     console.error("Error al obtener lotes:", error);
@@ -493,6 +530,9 @@ export const obtenerLotes = (limite: number = 100): LoteUI[] => {
 };
 
 // 6.2. Obtener los items (productos) de un lote
+// Los precios se toman, cuando existen, de la venta registrada (dato histórico
+// exacto). Si el lote no proviene de una venta (entradas, ajustes, etc.) se usa
+// el precio actual del catálogo como referencia.
 export const obtenerItemsDeLote = (loteId: string): ItemLoteUI[] => {
   try {
     return db.getAllSync<ItemLoteUI>(
@@ -506,9 +546,15 @@ export const obtenerItemsDeLote = (loteId: string): ItemLoteUI[] => {
          m.cantidad,
          m.motivo,
          m.nota,
-         m.fecha
+         m.fecha,
+         COALESCE(vi.precio_venta_unitario, p.precio_venta, 0) AS precio_venta_unitario,
+         COALESCE(vi.precio_compra_unitario, p.precio_compra, 0) AS precio_compra_unitario,
+         CASE WHEN vi.id IS NOT NULL THEN 1 ELSE 0 END AS precios_de_venta
        FROM movimientos_stock m
        INNER JOIN productos p ON p.id = m.producto_id
+       LEFT JOIN ventas_items vi
+         ON vi.producto_id = m.producto_id
+        AND vi.venta_id = (SELECT v.id FROM ventas v WHERE v.lote_id = m.lote_id LIMIT 1)
        WHERE m.lote_id = ?
        ORDER BY p.nombre ASC;`,
       [loteId],

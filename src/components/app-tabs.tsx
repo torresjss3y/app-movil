@@ -1,8 +1,14 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
+import { Pressable, PressableProps } from "react-native";
 
 import { Colors } from "@/constants/theme";
 import { useThemeMode } from "@/contexts/theme-context";
+
+// Botón de pestaña sin el "círculo" (ripple) que Android dibuja al presionar.
+function TabButton(props: PressableProps) {
+  return <Pressable {...props} android_ripple={{ color: "transparent" }} />;
+}
 
 export function AppTabs() {
   const { resolvedTheme } = useThemeMode();
@@ -14,6 +20,7 @@ export function AppTabs() {
         headerShown: false,
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.tabInactive,
+        tabBarButton: TabButton,
         tabBarStyle: {
           height: 100,
           paddingTop: 8,

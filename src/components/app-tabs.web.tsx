@@ -31,7 +31,13 @@ export default AppTabs;
 
 export function TabButton({ children, isFocused, ...props }: TabTriggerSlotProps) {
   return (
-    <Pressable {...props} style={({ pressed }) => pressed && styles.pressed}>
+    <Pressable
+      {...props}
+      // Desactivamos el ripple de Android (el "círculo" que aparece al presionar);
+      // usamos solo el feedback de opacidad definido en styles.pressed.
+      android_ripple={{ color: "transparent", borderless: false }}
+      style={({ pressed }) => (pressed ? styles.pressed : undefined)}
+    >
       <ThemedView type={isFocused ? "backgroundSelected" : "backgroundElement"} style={styles.tabButtonView}>
         <ThemedText type="small" themeColor={isFocused ? "text" : "textSecondary"}>
           {children}

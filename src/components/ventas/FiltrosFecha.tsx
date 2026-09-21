@@ -63,8 +63,8 @@ export function ResumenVentas({ totalVendido, totalGanancia, totalVentas, totalU
   return (
     <ThemedView style={[styles.resumenCard, { borderColor: theme.border, backgroundColor: theme.card }]}>
       <View style={styles.resumenRow}>
-        <Fila etiqueta="Total vendido" valor={`S/ ${totalVendido.toFixed(2)}`} color={theme.success} />
-        <Fila etiqueta="Ganancia est." valor={`S/ ${totalGanancia.toFixed(2)}`} color={theme.primary} />
+        <Fila etiqueta="Total vendido" valor={`S/ ${totalVendido.toFixed(2)}`} color={theme.data} />
+        <Fila etiqueta="Ganancia est." valor={`S/ ${totalGanancia.toFixed(2)}`} color={theme.dataAlt} />
       </View>
       <View style={[styles.resumenDivider, { backgroundColor: theme.divider }]} />
       <View style={styles.resumenRow}>

@@ -9,14 +9,18 @@ export const Colors = {
     textInverse: "#FFFFFF",
     background: "#F7F8FA",
     backgroundElement: "#FFFFFF",
-    backgroundSelected: "#FEF3C7",
+    backgroundSelected: "#DCFCE7",
     backgroundMuted: "#F1F3F7",
     card: "#FFFFFF",
-    primary: "#0F766E",
-    primaryStrong: "#115E59",
-    accent: "#14B8A6",
+    // Verde unificado (mismo tono que la lista de ventas)
+    primary: "#059669",
+    primaryStrong: "#047857",
+    accent: "#10B981",
     success: "#059669",
     successBackground: "#ECFDF5",
+    // Color de datos (métricas): azul/índigo, distinto del verde de acciones
+    data: "#2563EB",
+    dataAlt: "#7C3AED",
     warning: "#B45309",
     warningBackground: "#FEF3C7",
     danger: "#BE123C",
@@ -35,14 +39,18 @@ export const Colors = {
     textInverse: "#0F1420",
     background: "#0C1117",
     backgroundElement: "#151B24",
-    backgroundSelected: "#1F2A3A",
+    backgroundSelected: "#133024",
     backgroundMuted: "#10161E",
     card: "#151B24",
-    primary: "#2DD4BF",
-    primaryStrong: "#5EEAD4",
-    accent: "#14B8A6",
+    // Verde unificado (mismo tono que la lista de ventas, aclarado para dark)
+    primary: "#34D399",
+    primaryStrong: "#6EE7B7",
+    accent: "#10B981",
     success: "#34D399",
     successBackground: "#0C2F24",
+    // Color de datos (métricas): azul/índigo, distinto del verde de acciones
+    data: "#60A5FA",
+    dataAlt: "#A78BFA",
     warning: "#FBBF24",
     warningBackground: "#3A2A0A",
     danger: "#FB7185",
@@ -93,5 +101,9 @@ export const BottomTabInset =
     ios: 50,
     android: 80,
   }) ?? 0;
+
+// Altura mínima compartida por las filas de listado (Ventas, Inventario, Movimientos)
+// para que todos los contenedores tengan el mismo tamaño y se vean consistentes.
+export const ListItemHeight = 68;
 
 export const MaxContentWidth = 800;

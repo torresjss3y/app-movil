@@ -1,10 +1,11 @@
-import { AccionesMovimiento, DetalleMovimientoModal, FiltrosMovimientos, HeaderMetricas, ItemMovimiento, ModalMovimientoRapido } from "@/components/movimientos";
+import { AccionesMovimiento, DetalleMovimientoModal, FiltrosFechaMovimientos, FiltrosMovimientos, HeaderMetricas, ItemMovimiento, ModalMovimientoRapido } from "@/components/movimientos";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { MaxContentWidth, Spacing } from "@/constants/theme";
-import { Ionicons } from "@expo/vector-icons";
 import { LoteUI, MetricasResumen, obtenerLotes, obtenerMetricas } from "@/database/productosService";
+import { calcularRango, RangoFecha } from "@/database/ventaService";
 import { useTheme } from "@/hooks/use-theme";
+import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "expo-router";
 import { useCallback, useMemo, useState } from "react";
 import { ScrollView, StyleSheet, TextInput, View } from "react-native";
@@ -15,6 +16,7 @@ export default function MovimientosScreen() {
   const theme = useTheme();
   const [busqueda, setBusqueda] = useState("");
   const [filtro, setFiltro] = useState<TipoFiltro>("todos");
+  const [rango, setRango] = useState<RangoFecha>("hoy");
   const [lotes, setLotes] = useState<LoteUI[]>([]);
   const [loteSeleccionado, setLoteSeleccionado] = useState<LoteUI | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
@@ -31,16 +33,22 @@ export default function MovimientosScreen() {
     productosBajoStock: 0,
   });
 
-  const cargarLotes = useCallback(() => {
-    setLotes(obtenerLotes(200));
+  const cargarLotes = useCallback((rangoActual: RangoFecha) => {
+    const { desde, hasta } = calcularRango(rangoActual);
+    setLotes(obtenerLotes(200, desde, hasta));
     setMetricas(obtenerMetricas());
   }, []);
 
   useFocusEffect(
     useCallback(() => {
-      cargarLotes();
-    }, [cargarLotes]),
+      cargarLotes(rango);
+    }, [cargarLotes, rango]),
   );
+
+  const cambiarRango = (nuevo: RangoFecha) => {
+    setRango(nuevo);
+    cargarLotes(nuevo);
+  };
 
   const lotesFiltrados = useMemo(() => {
     const texto = busqueda.toLowerCase().trim();
@@ -107,6 +115,10 @@ export default function MovimientosScreen() {
               onChangeText={setBusqueda}
             />
 
+            <FiltrosFechaMovimientos rangoActual={rango} onCambiar={cambiarRango} />
+
+            <View style={styles.filtrosSpacer} />
+
             <FiltrosMovimientos filtroActivo={filtro} alCambiarFiltro={setFiltro} />
           </View>
 
@@ -129,7 +141,7 @@ export default function MovimientosScreen() {
         </ScrollView>
       </SafeAreaView>
 
-      <ModalMovimientoRapido key={movimientoModo ?? "cerrado"} visible={movimientoModo !== null} modo={movimientoModo ?? "entrada"} onClose={cerrarMovimiento} onSuccess={cargarLotes} />
+      <ModalMovimientoRapido key={movimientoModo ?? "cerrado"} visible={movimientoModo !== null} modo={movimientoModo ?? "entrada"} onClose={cerrarMovimiento} onSuccess={() => cargarLotes(rango)} />
 
       <DetalleMovimientoModal visible={modalVisible} lote={loteSeleccionado} onClose={cerrarDetalle} />
     </ThemedView>
@@ -179,6 +191,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   section: { gap: Spacing.two },
+  filtrosSpacer: { height: Spacing.two },
   movementList: { gap: Spacing.two },
   placeholderText: {
     opacity: 0.6,

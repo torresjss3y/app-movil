@@ -2,7 +2,7 @@ import { ThemedText } from "@/components/themed-text";
 import { FiltrosFecha, ResumenVentas } from "@/components/ventas/FiltrosFecha";
 import { ModalVentas } from "@/components/ventas/ModalVentas";
 import { TicketVenta } from "@/components/ventas/TicketVenta";
-import { BottomTabInset, Spacing } from "@/constants/theme";
+import { BottomTabInset, ListItemHeight, Spacing } from "@/constants/theme";
 import { calcularRango, exportarCsvVentas, listarVentas, obtenerReporteVentas, obtenerVentaCompleta, RangoFecha, ReporteVentas, VentaCompleta, VentaResumen } from "@/database/ventaService";
 import { useTheme } from "@/hooks/use-theme";
 import { Ionicons } from "@expo/vector-icons";
@@ -177,7 +177,7 @@ const styles = StyleSheet.create({
     elevation: 6,
   },
   ventaRow: {
-    minHeight: 68,
+    minHeight: ListItemHeight,
     flexDirection: "row",
     alignItems: "center",
     borderWidth: 1,
